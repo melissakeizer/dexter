@@ -37,6 +37,7 @@ const LS_TIMESTAMPS = "tcg_cache_timestamps"
 
 const STALE_SETS = 24 * 60 * 60 * 1000 // 24h
 const STALE_META = 24 * 60 * 60 * 1000 // 24h
+const STALE_SET_CARDS = 60 * 60 * 1000 // 1h
 const MAX_CARD_CACHE = 500
 
 function getTimestamps(): Record<string, number> {
@@ -99,6 +100,34 @@ export function isMetaStale(): boolean {
   const ts = getTimestamps()[LS_META]
   if (!ts) return true
   return Date.now() - ts > STALE_META
+}
+
+// ── Set card lists ──
+
+function setCardKey(setId: string) {
+  return `tcg_set_cards_${setId}`
+}
+
+export function getSetCardCache(setId: string): { cards: PokemonCard[]; totalCount: number } | null {
+  try {
+    const raw = localStorage.getItem(setCardKey(setId))
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+export function setSetCardCache(setId: string, data: { cards: PokemonCard[]; totalCount: number }) {
+  try {
+    localStorage.setItem(setCardKey(setId), JSON.stringify(data))
+    setTimestamp(setCardKey(setId))
+  } catch { /* quota exceeded */ }
+}
+
+export function isSetCardCacheStale(setId: string): boolean {
+  const ts = getTimestamps()[setCardKey(setId)]
+  if (!ts) return true
+  return Date.now() - ts > STALE_SET_CARDS
 }
 
 // ── Card cache persistence ──

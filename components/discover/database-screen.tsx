@@ -9,6 +9,7 @@ import { CardDetailModal } from "@/components/shared/card-detail-modal"
 import { QuickFilterBar } from "@/components/shared/quick-filter-bar"
 import type { MetaFilter } from "@/lib/types"
 import { useAppStore } from "@/lib/store"
+import { dedupeById } from "@/lib/utils"
 import { useSearchCards } from "@/hooks/use-tcg-data"
 import type { PokemonCard, CardFilters } from "@/lib/types"
 
@@ -43,14 +44,14 @@ export function DatabaseScreen({
     filters,
   })
 
-  // Accumulate cards across pages
+  // Accumulate cards across pages (dedupe to prevent duplicate keys)
   useEffect(() => {
     if (!result) return
     startTransition(() => {
       if (page === 1) {
-        setAllFetchedCards(result.cards)
+        setAllFetchedCards(dedupeById(result.cards))
       } else {
-        setAllFetchedCards((prev) => [...prev, ...result.cards])
+        setAllFetchedCards((prev) => dedupeById([...prev, ...result.cards]))
       }
     })
   }, [result, page])
