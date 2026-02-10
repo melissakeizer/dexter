@@ -120,10 +120,14 @@ interface UseSearchCardsOpts {
   pageSize?: number
   filters?: CardFilters
   enabled?: boolean
+  /** Pre-built Lucene query — bypasses q + filters building */
+  rawQuery?: string
+  /** API orderBy param, e.g. "number" or "-rarity" */
+  orderBy?: string
 }
 
 export function useSearchCards(opts: UseSearchCardsOpts) {
-  const { q, page = 1, pageSize = 20, filters, enabled = true } = opts
+  const { q, page = 1, pageSize = 20, filters, enabled = true, rawQuery, orderBy } = opts
   const [result, setResult] = useState<TcgCardsResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -159,9 +163,11 @@ export function useSearchCards(opts: UseSearchCardsOpts) {
     if (!enabled) return
 
     const params = new URLSearchParams()
-    if (luceneQuery) params.set("q", luceneQuery)
+    const finalQuery = rawQuery ?? luceneQuery
+    if (finalQuery) params.set("q", finalQuery)
     params.set("page", String(page))
     params.set("pageSize", String(pageSize))
+    if (orderBy) params.set("orderBy", orderBy)
 
     const controller = new AbortController()
     startTransition(() => {
@@ -198,7 +204,7 @@ export function useSearchCards(opts: UseSearchCardsOpts) {
       })
 
     return () => controller.abort()
-  }, [luceneQuery, page, pageSize, enabled])
+  }, [luceneQuery, rawQuery, orderBy, page, pageSize, enabled])
 
   return { result, loading, error }
 }

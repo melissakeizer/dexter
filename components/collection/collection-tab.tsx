@@ -79,7 +79,7 @@ export function CollectionTab() {
 
       {/* Results */}
       {loading ? (
-        <div className="grid grid-cols-2 gap-3 pb-4 md:grid-cols-4">
+        <div className="grid grid-cols-3 gap-3 pb-4 md:grid-cols-6">
           {Array.from({ length: 4 }).map((_, i) => (
             <CardTileSkeleton key={i} />
           ))}
@@ -94,7 +94,7 @@ export function CollectionTab() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 pb-4 md:grid-cols-4">
+        <div className="grid grid-cols-3 gap-3 pb-4 md:grid-cols-6">
           {cards.map((card) => (
             <CardTile
               key={card.id}

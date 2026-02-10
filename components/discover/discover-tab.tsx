@@ -5,6 +5,7 @@ import { ChevronRight } from "lucide-react"
 import { CarouselRow } from "./carousel-row"
 import { SetCarouselRow } from "./set-carousel-row"
 import { DatabaseScreen } from "./database-screen"
+import { SetScreen } from "./set-screen"
 import { CardTile } from "@/components/shared/card-tile"
 import { CardTileSkeleton } from "@/components/shared/card-tile-skeleton"
 import { CarouselRowSkeleton } from "@/components/shared/carousel-row-skeleton"
@@ -39,6 +40,7 @@ const emptyFilters: CardFilters = { rarity: [], artist: [], set: [], type: [] }
 type Screen =
   | { type: "feed" }
   | { type: "database"; filters?: CardFilters; query?: string }
+  | { type: "set"; setId: string; setName: string }
 
 export function DiscoverTab() {
   const [screen, setScreen] = useState<Screen>({ type: "feed" })
@@ -152,6 +154,17 @@ export function DiscoverTab() {
     const filters: CardFilters = { ...emptyFilters, [row.filterKey]: [row.filterValue] }
     setScreen({ type: "database", filters })
   }, [])
+
+  // ── Set screen ──
+  if (screen.type === "set") {
+    return (
+      <SetScreen
+        setId={screen.setId}
+        setName={screen.setName}
+        onBack={() => setScreen({ type: "feed" })}
+      />
+    )
+  }
 
   // ── Database screen ──
   if (screen.type === "database") {
@@ -268,10 +281,7 @@ export function DiscoverTab() {
                   set={set}
                   onCardTap={setSelectedCard}
                   onViewAll={() =>
-                    setScreen({
-                      type: "database",
-                      filters: { ...emptyFilters, set: [set.name] },
-                    })
+                    setScreen({ type: "set", setId: set.id, setName: set.name })
                   }
                 />
               ))}
