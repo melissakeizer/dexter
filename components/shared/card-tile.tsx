@@ -1,0 +1,110 @@
+"use client"
+
+import React from "react"
+
+import { useState } from "react"
+import Image from "next/image"
+import { Heart, Check } from "lucide-react"
+import { useAppStore } from "@/lib/store"
+import type { PokemonCard } from "@/lib/types"
+import { cn } from "@/lib/utils"
+
+interface CardTileProps {
+  card: PokemonCard
+  onTap: (card: PokemonCard) => void
+  showOwned?: boolean
+  showLiked?: boolean
+}
+
+export function CardTile({ card, onTap, showOwned = true, showLiked = true }: CardTileProps) {
+  const cardStates = useAppStore((s) => s.cardStates)
+  const toggleOwned = useAppStore((s) => s.toggleOwned)
+  const toggleLiked = useAppStore((s) => s.toggleLiked)
+  const [heartBounce, setHeartBounce] = useState(false)
+  const [showToast, setShowToast] = useState(false)
+
+  const state = cardStates[card.id] ?? { owned: false, liked: false }
+
+  function handleToggleLiked(e: React.MouseEvent) {
+    e.stopPropagation()
+    toggleLiked(card.id)
+    if (!state.liked) {
+      setHeartBounce(true)
+      setShowToast(true)
+      setTimeout(() => setHeartBounce(false), 400)
+      setTimeout(() => setShowToast(false), 1200)
+    }
+  }
+
+  function handleToggleOwned(e: React.MouseEvent) {
+    e.stopPropagation()
+    toggleOwned(card.id)
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => onTap(card)}
+        className="group relative flex w-full flex-col items-center rounded-xl bg-card p-1.5 shadow-sm ring-1 ring-border transition-all hover:shadow-md hover:ring-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.98]"
+      >
+        <div className="relative aspect-[2.5/3.5] w-full overflow-hidden rounded-lg">
+          <Image
+            src={card.imageUrl || "/placeholder.svg"}
+            alt={card.name}
+            fill
+            className="object-contain transition-transform group-hover:scale-105"
+            sizes="(max-width: 768px) 45vw, 22vw"
+          />
+        </div>
+        <span className="mt-1.5 w-full truncate px-0.5 text-center text-xs font-medium text-foreground">
+          {card.name}
+        </span>
+      </button>
+
+      {/* Owned toggle - top right */}
+      {showOwned && (
+        <button
+          onClick={handleToggleOwned}
+          className={cn(
+            "absolute right-2.5 top-2.5 z-10 flex h-7 w-7 items-center justify-center rounded-full shadow-md transition-all active:scale-90",
+            state.owned
+              ? "bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))]"
+              : "bg-card/80 text-muted-foreground backdrop-blur-sm ring-1 ring-border hover:bg-card"
+          )}
+          aria-label={state.owned ? "Remove from owned" : "Mark as owned"}
+        >
+          <Check className={cn("h-3.5 w-3.5", state.owned && "stroke-[3]")} />
+        </button>
+      )}
+
+      {/* Like button - bottom center overlay */}
+      {showLiked && (
+        <button
+          onClick={handleToggleLiked}
+          className={cn(
+            "absolute bottom-9 left-1/2 z-10 flex -translate-x-1/2 items-center justify-center rounded-full p-1.5 shadow-md transition-all active:scale-90",
+            state.liked
+              ? "bg-red-500 text-card"
+              : "bg-card/80 text-muted-foreground backdrop-blur-sm ring-1 ring-border hover:bg-card"
+          )}
+          aria-label={state.liked ? "Unlike" : "Like"}
+        >
+          <Heart
+            className={cn(
+              "h-5 w-5 transition-transform",
+              state.liked && "fill-current",
+              heartBounce && "animate-bounce-heart"
+            )}
+          />
+        </button>
+      )}
+
+      {/* Liked toast */}
+      {showToast && (
+        <div className="absolute bottom-14 left-1/2 z-20 -translate-x-1/2 animate-fade-up rounded-full bg-foreground/90 px-3 py-1 text-xs font-medium text-background shadow-lg">
+          Liked!
+        </div>
+      )}
+    </div>
+  )
+}
