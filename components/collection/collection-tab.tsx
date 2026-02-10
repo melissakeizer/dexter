@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useMemo, useState } from "react"
 import { Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { CardTile } from "@/components/shared/card-tile"
@@ -10,24 +10,23 @@ import { MOCK_CARDS } from "@/lib/mock-data"
 import type { PokemonCard } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
-type Segment = "liked" | "owned"
-
 export function CollectionTab() {
   const cardStates = useAppStore((s) => s.cardStates)
-  const [segment, setSegment] = useState<Segment>("liked")
-  const [query, setQuery] = useState("")
+  const segment = useAppStore((s) => s.collectionSegment)
+  const setSegment = useAppStore((s) => s.setCollectionSegment)
+  const query = useAppStore((s) => s.collectionQuery)
+  const setQuery = useAppStore((s) => s.setCollectionQuery)
   const [selectedCard, setSelectedCard] = useState<PokemonCard | null>(null)
 
   const cards = useMemo(() => {
     let results = MOCK_CARDS.map((c) => ({
       ...c,
-      owned: cardStates[c.id]?.owned ?? c.owned,
-      liked: cardStates[c.id]?.liked ?? c.liked,
+      status: cardStates[c.id]?.status ?? c.status,
     }))
 
     // Filter by segment
     results = results.filter((c) =>
-      segment === "liked" ? c.liked : c.owned
+      segment === "wishlist" ? c.status === "wishlist" : c.status === "owned"
     )
 
     // Filter by search
@@ -39,8 +38,8 @@ export function CollectionTab() {
     return results
   }, [cardStates, segment, query])
 
-  const likedCount = MOCK_CARDS.filter((c) => cardStates[c.id]?.liked ?? c.liked).length
-  const ownedCount = MOCK_CARDS.filter((c) => cardStates[c.id]?.owned ?? c.owned).length
+  const wishlistCount = MOCK_CARDS.filter((c) => (cardStates[c.id]?.status ?? c.status) === "wishlist").length
+  const ownedCount = MOCK_CARDS.filter((c) => (cardStates[c.id]?.status ?? c.status) === "owned").length
 
   return (
     <div className="flex flex-col gap-4 px-4 pt-4">
@@ -48,22 +47,22 @@ export function CollectionTab() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Collection</h1>
         <p className="text-sm text-muted-foreground">
-          {likedCount} liked, {ownedCount} owned
+          {wishlistCount} wishlist, {ownedCount} owned
         </p>
       </div>
 
       {/* Segmented control */}
       <div className="flex rounded-lg bg-muted p-1">
         <button
-          onClick={() => setSegment("liked")}
+          onClick={() => setSegment("wishlist")}
           className={cn(
             "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-            segment === "liked"
+            segment === "wishlist"
               ? "bg-card text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
           )}
         >
-          Liked ({likedCount})
+          Wishlist ({wishlistCount})
         </button>
         <button
           onClick={() => setSegment("owned")}
@@ -96,7 +95,7 @@ export function CollectionTab() {
             No {segment} cards{query ? " matching search" : " yet"}
           </p>
           <p className="text-xs text-muted-foreground">
-            Head to Discover to {segment === "liked" ? "like" : "mark"} some cards
+            Head to Discover to {segment === "wishlist" ? "wishlist" : "mark"} some cards
           </p>
         </div>
       ) : (
@@ -107,7 +106,7 @@ export function CollectionTab() {
               card={card}
               onTap={setSelectedCard}
               showOwned={segment === "owned"}
-              showLiked={segment === "liked"}
+              showLiked={segment === "wishlist"}
             />
           ))}
         </div>

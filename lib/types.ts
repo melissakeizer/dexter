@@ -1,5 +1,7 @@
 // ── Pokemon Card (simplified) ──
 
+export type CardStatus = "owned" | "wishlist" | "none"
+
 export interface PokemonCard {
   id: string
   name: string
@@ -8,8 +10,7 @@ export interface PokemonCard {
   type: string
   artist: string
   imageUrl: string
-  owned: boolean
-  liked: boolean
+  status: CardStatus
 }
 
 // ── Binder Types ──
@@ -48,3 +49,5 @@ export interface CardFilters {
   set: string[]
   type: string[]
 }
+
+export type MetaFilter = "owned" | "wishlist"

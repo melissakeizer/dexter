@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { CardTile } from "@/components/shared/card-tile"
 import { CardDetailModal } from "@/components/shared/card-detail-modal"
 import { QuickFilterBar } from "@/components/shared/quick-filter-bar"
-import type { MetaFilter } from "@/components/shared/quick-filter-bar"
+import type { MetaFilter } from "@/lib/types"
 import { MOCK_CARDS } from "@/lib/mock-data"
 import { useAppStore } from "@/lib/store"
 import type { PokemonCard, CardFilters } from "@/lib/types"
@@ -36,8 +36,7 @@ export function DatabaseScreen({
   const allCards = useMemo(() => {
     return MOCK_CARDS.map((c) => ({
       ...c,
-      owned: cardStates[c.id]?.owned ?? c.owned,
-      liked: cardStates[c.id]?.liked ?? c.liked,
+      status: cardStates[c.id]?.status ?? c.status,
     }))
   }, [cardStates])
 
@@ -67,10 +66,10 @@ export function DatabaseScreen({
     }
     // Meta-filters
     if (metaFilters.includes("owned")) {
-      results = results.filter((c) => c.owned)
+      results = results.filter((c) => c.status === "owned")
     }
-    if (metaFilters.includes("liked")) {
-      results = results.filter((c) => c.liked)
+    if (metaFilters.includes("wishlist")) {
+      results = results.filter((c) => c.status === "wishlist")
     }
 
     return results

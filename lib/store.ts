@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import type { Binder, BinderColor } from "./types"
+import type { Binder, BinderColor, CardFilters, CardStatus, MetaFilter } from "./types"
 import { MOCK_CARDS, DEFAULT_BINDERS } from "./mock-data"
 
 function generateId() {
@@ -9,11 +9,22 @@ function generateId() {
 
 interface AppStore {
   // ── Card states (keyed by card id) ──
-  cardStates: Record<string, { owned: boolean; liked: boolean }>
-  toggleOwned: (cardId: string) => void
-  toggleLiked: (cardId: string) => void
+  cardStates: Record<string, { status: CardStatus }>
+  setCardStatus: (cardId: string, status: CardStatus) => void
   isOwned: (cardId: string) => boolean
-  isLiked: (cardId: string) => boolean
+  isWishlist: (cardId: string) => boolean
+
+  // ── Persisted filter state ──
+  discoverQuery: string
+  discoverFilters: CardFilters
+  discoverMeta: MetaFilter[]
+  collectionQuery: string
+  collectionSegment: "wishlist" | "owned"
+  setDiscoverQuery: (q: string) => void
+  setDiscoverFilters: (f: CardFilters) => void
+  setDiscoverMeta: (m: MetaFilter[]) => void
+  setCollectionQuery: (q: string) => void
+  setCollectionSegment: (s: "wishlist" | "owned") => void
 
   // ── Binders ──
   binders: Binder[]
@@ -25,9 +36,9 @@ interface AppStore {
 }
 
 // Build initial card states from mock data
-const initialCardStates: Record<string, { owned: boolean; liked: boolean }> = {}
+const initialCardStates: Record<string, { status: CardStatus }> = {}
 for (const card of MOCK_CARDS) {
-  initialCardStates[card.id] = { owned: card.owned, liked: card.liked }
+  initialCardStates[card.id] = { status: card.status }
 }
 
 function updateBinderPages(
@@ -57,30 +68,28 @@ export const useAppStore = create<AppStore>()(
     (set, get) => ({
       cardStates: initialCardStates,
 
-      toggleOwned: (cardId) =>
-        set((state) => {
-          const existing = state.cardStates[cardId] ?? { owned: false, liked: false }
-          return {
-            cardStates: {
-              ...state.cardStates,
-              [cardId]: { ...existing, owned: !existing.owned },
-            },
-          }
-        }),
+      setCardStatus: (cardId, status) =>
+        set((state) => ({
+          cardStates: {
+            ...state.cardStates,
+            [cardId]: { status },
+          },
+        })),
 
-      toggleLiked: (cardId) =>
-        set((state) => {
-          const existing = state.cardStates[cardId] ?? { owned: false, liked: false }
-          return {
-            cardStates: {
-              ...state.cardStates,
-              [cardId]: { ...existing, liked: !existing.liked },
-            },
-          }
-        }),
+      isOwned: (cardId) => get().cardStates[cardId]?.status === "owned",
+      isWishlist: (cardId) => get().cardStates[cardId]?.status === "wishlist",
 
-      isOwned: (cardId) => get().cardStates[cardId]?.owned ?? false,
-      isLiked: (cardId) => get().cardStates[cardId]?.liked ?? false,
+      // ── Persisted filter state ──
+      discoverQuery: "",
+      discoverFilters: { rarity: [], artist: [], set: [], type: [] },
+      discoverMeta: [],
+      collectionQuery: "",
+      collectionSegment: "wishlist",
+      setDiscoverQuery: (q) => set({ discoverQuery: q }),
+      setDiscoverFilters: (f) => set({ discoverFilters: f }),
+      setDiscoverMeta: (m) => set({ discoverMeta: m }),
+      setCollectionQuery: (q) => set({ collectionQuery: q }),
+      setCollectionSegment: (s) => set({ collectionSegment: s }),
 
       // ── Binders ──
       binders: DEFAULT_BINDERS,
@@ -145,6 +154,27 @@ export const useAppStore = create<AppStore>()(
     }),
     {
       name: "pokemon-binder-storage",
+      version: 1,
+      migrate: (persisted: unknown, version: number) => {
+        const state = persisted as Record<string, unknown>
+        if (version === 0) {
+          // Migrate from { owned: boolean, liked: boolean } to { status: CardStatus }
+          const oldCardStates = state.cardStates as Record<string, { owned?: boolean; liked?: boolean; status?: CardStatus }> | undefined
+          if (oldCardStates) {
+            const newCardStates: Record<string, { status: CardStatus }> = {}
+            for (const [id, val] of Object.entries(oldCardStates)) {
+              if (val.status) {
+                newCardStates[id] = { status: val.status }
+              } else {
+                const status: CardStatus = val.owned ? "owned" : val.liked ? "wishlist" : "none"
+                newCardStates[id] = { status }
+              }
+            }
+            state.cardStates = newCardStates
+          }
+        }
+        return state as unknown as AppStore
+      },
     }
   )
 )

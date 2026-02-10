@@ -24,12 +24,12 @@ export function CardPickerModal({ open, onOpenChange, onSelect }: CardPickerModa
   const cardStates = useAppStore((s) => s.cardStates)
 
   const ownedCards = useMemo(
-    () => MOCK_CARDS.filter((c) => cardStates[c.id]?.owned ?? c.owned),
+    () => MOCK_CARDS.filter((c) => (cardStates[c.id]?.status ?? c.status) === "owned"),
     [cardStates]
   )
 
-  const likedCards = useMemo(
-    () => MOCK_CARDS.filter((c) => cardStates[c.id]?.liked ?? c.liked),
+  const wishlistCards = useMemo(
+    () => MOCK_CARDS.filter((c) => (cardStates[c.id]?.status ?? c.status) === "wishlist"),
     [cardStates]
   )
 
@@ -79,8 +79,8 @@ export function CardPickerModal({ open, onOpenChange, onSelect }: CardPickerModa
               <TabsTrigger value="owned" className="flex-1">
                 Owned ({ownedCards.length})
               </TabsTrigger>
-              <TabsTrigger value="liked" className="flex-1">
-                Liked ({likedCards.length})
+              <TabsTrigger value="wishlist" className="flex-1">
+                Wishlist ({wishlistCards.length})
               </TabsTrigger>
             </TabsList>
             <TabsContent value="owned" className="mt-3">
@@ -88,9 +88,9 @@ export function CardPickerModal({ open, onOpenChange, onSelect }: CardPickerModa
                 {renderGrid(ownedCards)}
               </ScrollArea>
             </TabsContent>
-            <TabsContent value="liked" className="mt-3">
+            <TabsContent value="wishlist" className="mt-3">
               <ScrollArea className="h-[50dvh]">
-                {renderGrid(likedCards)}
+                {renderGrid(wishlistCards)}
               </ScrollArea>
             </TabsContent>
           </Tabs>

@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useMemo, useCallback, useState } from "react"
 import { ChevronRight } from "lucide-react"
 import { CarouselRow } from "./carousel-row"
 import { DatabaseScreen } from "./database-screen"
 import { CardTile } from "@/components/shared/card-tile"
 import { CardDetailModal } from "@/components/shared/card-detail-modal"
 import { QuickFilterBar } from "@/components/shared/quick-filter-bar"
-import type { MetaFilter } from "@/components/shared/quick-filter-bar"
+import type { MetaFilter } from "@/lib/types"
 import { MOCK_CARDS } from "@/lib/mock-data"
 import { useAppStore } from "@/lib/store"
 import type { PokemonCard, CardFilters } from "@/lib/types"
@@ -40,10 +40,13 @@ export function DiscoverTab() {
   const [screen, setScreen] = useState<Screen>({ type: "feed" })
   const [selectedCard, setSelectedCard] = useState<PokemonCard | null>(null)
 
-  // Feed-level filter state (for quick chips + all-filters on the feed)
-  const [feedQuery, setFeedQuery] = useState("")
-  const [feedFilters, setFeedFilters] = useState<CardFilters>(emptyFilters)
-  const [feedMeta, setFeedMeta] = useState<MetaFilter[]>([])
+  // Feed-level filter state (persisted in store)
+  const feedQuery = useAppStore((s) => s.discoverQuery)
+  const setFeedQuery = useAppStore((s) => s.setDiscoverQuery)
+  const feedFilters = useAppStore((s) => s.discoverFilters)
+  const setFeedFilters = useAppStore((s) => s.setDiscoverFilters)
+  const feedMeta = useAppStore((s) => s.discoverMeta)
+  const setFeedMeta = useAppStore((s) => s.setDiscoverMeta)
 
   const cardStates = useAppStore((s) => s.cardStates)
 
@@ -51,8 +54,7 @@ export function DiscoverTab() {
   const allCards = useMemo(() => {
     return MOCK_CARDS.map((c) => ({
       ...c,
-      owned: cardStates[c.id]?.owned ?? c.owned,
-      liked: cardStates[c.id]?.liked ?? c.liked,
+      status: cardStates[c.id]?.status ?? c.status,
     }))
   }, [cardStates])
 
@@ -85,21 +87,20 @@ export function DiscoverTab() {
     if (feedFilters.type.length)
       results = results.filter((c) => feedFilters.type.includes(c.type))
     if (feedMeta.includes("owned"))
-      results = results.filter((c) => c.owned)
-    if (feedMeta.includes("liked"))
-      results = results.filter((c) => c.liked)
+      results = results.filter((c) => c.status === "owned")
+    if (feedMeta.includes("wishlist"))
+      results = results.filter((c) => c.status === "wishlist")
 
     return results
   }, [allCards, feedQuery, feedFilters, feedMeta, hasFeedFilters])
 
-  // Chase cards = holo rarity cards that are liked
+  // Chase cards = holo rarity cards, prioritize wishlist then owned
   const chaseCards = useMemo(() => {
     return allCards
       .filter((c) => c.rarity === "Rare Holo")
       .sort((a, b) => {
-        const aScore = (a.liked ? 2 : 0) + (a.owned ? 1 : 0)
-        const bScore = (b.liked ? 2 : 0) + (b.owned ? 1 : 0)
-        return bScore - aScore
+        const score = (s: string) => s === "wishlist" ? 2 : s === "owned" ? 1 : 0
+        return score(b.status) - score(a.status)
       })
       .slice(0, 10)
   }, [allCards])

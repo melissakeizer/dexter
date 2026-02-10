@@ -24,12 +24,11 @@ interface CardDetailModalProps {
 
 export function CardDetailModal({ card, open, onOpenChange }: CardDetailModalProps) {
   const cardStates = useAppStore((s) => s.cardStates)
-  const toggleOwned = useAppStore((s) => s.toggleOwned)
-  const toggleLiked = useAppStore((s) => s.toggleLiked)
+  const setCardStatus = useAppStore((s) => s.setCardStatus)
 
   if (!card) return null
 
-  const state = cardStates[card.id] ?? { owned: false, liked: false }
+  const status = cardStates[card.id]?.status ?? "none"
 
   const metadataRows = [
     { label: "Set", value: card.set },
@@ -68,26 +67,26 @@ export function CardDetailModal({ card, open, onOpenChange }: CardDetailModalPro
             {/* Action Buttons */}
             <div className="flex gap-3">
               <Button
-                variant={state.owned ? "default" : "outline"}
+                variant={status === "owned" ? "default" : "outline"}
                 className={cn(
                   "flex-1",
-                  state.owned && "bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))] hover:bg-[hsl(var(--success))]/90"
+                  status === "owned" && "bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))] hover:bg-[hsl(var(--success))]/90"
                 )}
-                onClick={() => toggleOwned(card.id)}
+                onClick={() => setCardStatus(card.id, status === "owned" ? "none" : "owned")}
               >
                 <Check className="mr-1.5 h-4 w-4" />
-                {state.owned ? "Owned" : "Mark Owned"}
+                {status === "owned" ? "Owned" : "Mark Owned"}
               </Button>
               <Button
-                variant={state.liked ? "default" : "outline"}
+                variant={status === "wishlist" ? "default" : "outline"}
                 className={cn(
                   "flex-1",
-                  state.liked && "bg-red-500 text-card hover:bg-red-500/90"
+                  status === "wishlist" && "bg-red-500 text-card hover:bg-red-500/90"
                 )}
-                onClick={() => toggleLiked(card.id)}
+                onClick={() => setCardStatus(card.id, status === "wishlist" ? "none" : "wishlist")}
               >
-                <Heart className={cn("mr-1.5 h-4 w-4", state.liked && "fill-current")} />
-                {state.liked ? "Liked" : "Like"}
+                <Heart className={cn("mr-1.5 h-4 w-4", status === "wishlist" && "fill-current")} />
+                {status === "wishlist" ? "Wishlist" : "Add to Wishlist"}
               </Button>
             </div>
 

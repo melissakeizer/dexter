@@ -5,7 +5,7 @@ import { Search, SlidersHorizontal, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { AllFiltersModal } from "./all-filters-modal"
-import type { CardFilters } from "@/lib/types"
+import type { CardFilters, MetaFilter } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 /* ── Static curated quick-filter chips ── */
@@ -28,8 +28,6 @@ const QUICK_CHIPS: QuickChip[] = [
 ]
 
 /* ── Meta chips that work on card state, not CardFilters ── */
-
-export type MetaFilter = "owned" | "liked"
 
 interface QuickFilterBarProps {
   query: string
@@ -127,9 +125,9 @@ export function QuickFilterBar({
                 Owned
               </Badge>
             </button>
-            <button onClick={() => toggleMeta("liked")} className="shrink-0">
+            <button onClick={() => toggleMeta("wishlist")} className="shrink-0">
               <Badge
-                variant={metaFilters.includes("liked") ? "default" : "outline"}
+                variant={metaFilters.includes("wishlist") ? "default" : "outline"}
                 className="cursor-pointer text-xs whitespace-nowrap"
               >
                 Wishlist
