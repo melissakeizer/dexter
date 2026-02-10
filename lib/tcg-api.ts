@@ -55,6 +55,7 @@ export function transformCard(raw: TcgApiCard): PokemonCard {
     id: raw.id,
     name: raw.name,
     set: raw.set.name,
+    setId: raw.set.id,
     rarity: raw.rarity ?? "Unknown",
     type: raw.types?.[0] ?? "Colorless",
     artist: raw.artist ?? "Unknown",

@@ -6,6 +6,7 @@ export interface PokemonCard {
   id: string
   name: string
   set: string
+  setId?: string
   rarity: string
   type: string
   artist: string
