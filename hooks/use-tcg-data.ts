@@ -16,16 +16,25 @@ import {
 
 // ── useSets ──
 
+const DEFAULT_META: CachedMeta = { types: MOCK_TYPES, rarities: MOCK_RARITIES, subtypes: [] }
+
 export function useSets() {
-  const [sets, setSets] = useState<CachedSet[]>(() => getCachedSets() ?? [])
+  // Start with empty array (deterministic for SSR), hydrate from localStorage in effect
+  const [sets, setSets] = useState<CachedSet[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fetched = useRef(false)
 
   useEffect(() => {
     if (fetched.current) return
-    if (!isSetsStale() && sets.length > 0) return
     fetched.current = true
+
+    // Hydrate from localStorage first
+    const cached = getCachedSets()
+    if (cached && cached.length > 0) {
+      startTransition(() => setSets(cached))
+      if (!isSetsStale()) return
+    }
 
     const controller = new AbortController()
     startTransition(() => setLoading(true))
@@ -53,7 +62,7 @@ export function useSets() {
       })
 
     return () => controller.abort()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   return { sets, loading, error }
 }
@@ -61,18 +70,22 @@ export function useSets() {
 // ── useMeta ──
 
 export function useMeta() {
-  const [meta, setMeta] = useState<CachedMeta>(() => {
-    const cached = getCachedMeta()
-    return cached ?? { types: MOCK_TYPES, rarities: MOCK_RARITIES, subtypes: [] }
-  })
+  // Start with deterministic defaults (safe for SSR), hydrate from localStorage in effect
+  const [meta, setMeta] = useState<CachedMeta>(DEFAULT_META)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fetched = useRef(false)
 
   useEffect(() => {
     if (fetched.current) return
-    if (!isMetaStale() && meta.types.length > 0) return
     fetched.current = true
+
+    // Hydrate from localStorage first
+    const cached = getCachedMeta()
+    if (cached) {
+      startTransition(() => setMeta(cached))
+      if (!isMetaStale()) return
+    }
 
     const controller = new AbortController()
     startTransition(() => setLoading(true))
@@ -100,7 +113,7 @@ export function useMeta() {
       })
 
     return () => controller.abort()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   return { meta, loading, error }
 }
