@@ -1,13 +1,14 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { ArrowLeft, X } from "lucide-react"
 import type { CardFilters } from "@/lib/types"
-import { MOCK_RARITIES, MOCK_ARTISTS, MOCK_SETS, MOCK_TYPES } from "@/lib/mock-data"
+import { MOCK_RARITIES, MOCK_SETS, MOCK_TYPES } from "@/lib/mock-data"
+import { useMeta, useSets } from "@/hooks/use-tcg-data"
 
 type FilterKey = keyof CardFilters
 
@@ -16,13 +17,6 @@ interface SectionDef {
   label: string
   options: string[]
 }
-
-const SECTIONS: SectionDef[] = [
-  { key: "set", label: "Set", options: MOCK_SETS },
-  { key: "artist", label: "Artist", options: MOCK_ARTISTS },
-  { key: "rarity", label: "Rarity", options: MOCK_RARITIES },
-  { key: "type", label: "Type", options: MOCK_TYPES },
-]
 
 interface AllFiltersModalProps {
   open: boolean
@@ -37,12 +31,31 @@ export function AllFiltersModal({
   filters,
   onApply,
 }: AllFiltersModalProps) {
+  // Sync draft when the modal opens — track previous open state
   const [draft, setDraft] = useState<CardFilters>(filters)
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open && !prevOpen) {
+    setDraft(filters)
+  }
+  if (open !== prevOpen) {
+    setPrevOpen(open)
+  }
 
-  // Sync draft when the modal opens
-  useEffect(() => {
-    if (open) setDraft(filters)
-  }, [open, filters])
+  const { meta } = useMeta()
+  const { sets } = useSets()
+
+  // Build sections from API data with mock fallback
+  const sections: SectionDef[] = useMemo(() => {
+    const setOptions = sets.length > 0 ? sets.map((s) => s.name) : MOCK_SETS
+    const rarityOptions = meta.rarities.length > 0 ? meta.rarities : MOCK_RARITIES
+    const typeOptions = meta.types.length > 0 ? meta.types : MOCK_TYPES
+
+    return [
+      { key: "set" as FilterKey, label: "Set", options: setOptions },
+      { key: "rarity" as FilterKey, label: "Rarity", options: rarityOptions },
+      { key: "type" as FilterKey, label: "Type", options: typeOptions },
+    ]
+  }, [sets, meta])
 
   const totalDraft = useMemo(
     () => Object.values(draft).flat().length,
@@ -97,7 +110,7 @@ export function AllFiltersModal({
       {/* Sections */}
       <ScrollArea className="flex-1">
         <div className="flex flex-col gap-1 p-4">
-          {SECTIONS.map((section, idx) => (
+          {sections.map((section, idx) => (
             <div key={section.key}>
               <h2 className="pb-2 pt-3 text-sm font-semibold text-foreground">
                 {section.label}
@@ -121,7 +134,7 @@ export function AllFiltersModal({
                   </label>
                 ))}
               </div>
-              {idx < SECTIONS.length - 1 && <Separator className="mt-3" />}
+              {idx < sections.length - 1 && <Separator className="mt-3" />}
             </div>
           ))}
         </div>

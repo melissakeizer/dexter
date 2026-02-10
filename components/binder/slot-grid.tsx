@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import Image from "next/image"
 import { Plus, ArrowLeftRight, Trash2 } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useAppStore } from "@/lib/store"
-import { MOCK_CARDS } from "@/lib/mock-data"
+import { useCardsById } from "@/hooks/use-tcg-data"
 import { CardPickerModal } from "./card-picker-modal"
 import type { BinderPage } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -19,6 +20,14 @@ export function SlotGrid({ binderId, page }: SlotGridProps) {
   const setSlotCard = useAppStore((s) => s.setSlotCard)
   const clearSlot = useAppStore((s) => s.clearSlot)
 
+  // Collect all card IDs that need resolving
+  const slotCardIds = useMemo(
+    () => page.slots.map((s) => s.cardId).filter((id): id is string => id !== null),
+    [page.slots]
+  )
+
+  const { cards: resolvedCards, loading: cardsLoading } = useCardsById(slotCardIds)
+
   // Picker for empty slots (tap to add)
   const [pickerSlotId, setPickerSlotId] = useState<string | null>(null)
   // Replace picker for filled slots
@@ -28,14 +37,39 @@ export function SlotGrid({ binderId, page }: SlotGridProps) {
     <>
       <div className="grid grid-cols-2 gap-2.5 rounded-2xl bg-muted/40 p-3 sm:gap-3 sm:p-4">
         {page.slots.map((slot) => {
-          const card = slot.cardId
-            ? MOCK_CARDS.find((c) => c.id === slot.cardId)
-            : null
+          const card = slot.cardId ? resolvedCards.get(slot.cardId) : null
           const state = slot.cardId ? cardStates[slot.cardId] : null
           const status = state?.status ?? "none"
           const isWishlistOnly = status === "wishlist"
+          const isLoadingCard = slot.cardId && !card && cardsLoading
 
           {/* Empty slot */}
+          if (!slot.cardId) {
+            return (
+              <button
+                key={slot.id}
+                type="button"
+                onClick={() => setPickerSlotId(slot.id)}
+                className="flex aspect-[2.5/3.5] items-center justify-center rounded-xl border-2 border-dashed border-border bg-card transition-all active:scale-[0.97]"
+              >
+                <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
+                  <Plus className="h-6 w-6" />
+                  <span className="text-xs font-medium">Add card</span>
+                </div>
+              </button>
+            )
+          }
+
+          {/* Loading skeleton while card resolves */}
+          if (isLoadingCard) {
+            return (
+              <div key={slot.id} className="overflow-hidden rounded-xl">
+                <Skeleton className="aspect-[2.5/3.5] w-full rounded-xl" />
+              </div>
+            )
+          }
+
+          {/* Card not found (shouldn't happen often) */}
           if (!card) {
             return (
               <button

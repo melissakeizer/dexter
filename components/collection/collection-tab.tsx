@@ -4,42 +4,31 @@ import { useMemo, useState } from "react"
 import { Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { CardTile } from "@/components/shared/card-tile"
+import { CardTileSkeleton } from "@/components/shared/card-tile-skeleton"
 import { CardDetailModal } from "@/components/shared/card-detail-modal"
 import { useAppStore } from "@/lib/store"
-import { MOCK_CARDS } from "@/lib/mock-data"
+import { useUserCards } from "@/hooks/use-user-cards"
 import type { PokemonCard } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 export function CollectionTab() {
-  const cardStates = useAppStore((s) => s.cardStates)
   const segment = useAppStore((s) => s.collectionSegment)
   const setSegment = useAppStore((s) => s.setCollectionSegment)
   const query = useAppStore((s) => s.collectionQuery)
   const setQuery = useAppStore((s) => s.setCollectionQuery)
   const [selectedCard, setSelectedCard] = useState<PokemonCard | null>(null)
 
+  const { cards: wishlistCards, loading: wishlistLoading } = useUserCards("wishlist")
+  const { cards: ownedCards, loading: ownedLoading } = useUserCards("owned")
+
+  const activeCards = segment === "wishlist" ? wishlistCards : ownedCards
+  const loading = segment === "wishlist" ? wishlistLoading : ownedLoading
+
   const cards = useMemo(() => {
-    let results = MOCK_CARDS.map((c) => ({
-      ...c,
-      status: cardStates[c.id]?.status ?? c.status,
-    }))
-
-    // Filter by segment
-    results = results.filter((c) =>
-      segment === "wishlist" ? c.status === "wishlist" : c.status === "owned"
-    )
-
-    // Filter by search
-    if (query) {
-      const q = query.toLowerCase()
-      results = results.filter((c) => c.name.toLowerCase().includes(q))
-    }
-
-    return results
-  }, [cardStates, segment, query])
-
-  const wishlistCount = MOCK_CARDS.filter((c) => (cardStates[c.id]?.status ?? c.status) === "wishlist").length
-  const ownedCount = MOCK_CARDS.filter((c) => (cardStates[c.id]?.status ?? c.status) === "owned").length
+    if (!query) return activeCards
+    const q = query.toLowerCase()
+    return activeCards.filter((c) => c.name.toLowerCase().includes(q))
+  }, [activeCards, query])
 
   return (
     <div className="flex flex-col gap-4 px-4 pt-4">
@@ -47,7 +36,7 @@ export function CollectionTab() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Collection</h1>
         <p className="text-sm text-muted-foreground">
-          {wishlistCount} wishlist, {ownedCount} owned
+          {wishlistCards.length} wishlist, {ownedCards.length} owned
         </p>
       </div>
 
@@ -62,7 +51,7 @@ export function CollectionTab() {
               : "text-muted-foreground hover:text-foreground"
           )}
         >
-          Wishlist ({wishlistCount})
+          Wishlist ({wishlistCards.length})
         </button>
         <button
           onClick={() => setSegment("owned")}
@@ -73,7 +62,7 @@ export function CollectionTab() {
               : "text-muted-foreground hover:text-foreground"
           )}
         >
-          Owned ({ownedCount})
+          Owned ({ownedCards.length})
         </button>
       </div>
 
@@ -89,7 +78,13 @@ export function CollectionTab() {
       </div>
 
       {/* Results */}
-      {cards.length === 0 ? (
+      {loading ? (
+        <div className="grid grid-cols-2 gap-3 pb-4 md:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <CardTileSkeleton key={i} />
+          ))}
+        </div>
+      ) : cards.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-16">
           <p className="text-sm text-muted-foreground">
             No {segment} cards{query ? " matching search" : " yet"}

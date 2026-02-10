@@ -51,3 +51,58 @@ export interface CardFilters {
 }
 
 export type MetaFilter = "owned" | "wishlist"
+
+// ── TCG API Types ──
+
+export interface TcgApiCard {
+  id: string
+  name: string
+  supertype?: string
+  subtypes?: string[]
+  types?: string[]
+  set: {
+    id: string
+    name: string
+    series: string
+    printedTotal: number
+    total: number
+    releaseDate: string
+    images: { symbol: string; logo: string }
+  }
+  rarity?: string
+  artist?: string
+  images: { small: string; large: string }
+}
+
+export interface TcgApiSet {
+  id: string
+  name: string
+  series: string
+  printedTotal: number
+  total: number
+  releaseDate: string
+  images: { symbol: string; logo: string }
+}
+
+export interface CachedSet {
+  id: string
+  name: string
+  series: string
+  total: number
+  releaseDate: string
+  symbolUrl: string
+  logoUrl: string
+}
+
+export interface CachedMeta {
+  types: string[]
+  rarities: string[]
+  subtypes: string[]
+}
+
+export interface TcgCardsResponse {
+  cards: PokemonCard[]
+  totalCount: number
+  page: number
+  pageSize: number
+}

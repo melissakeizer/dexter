@@ -1,14 +1,15 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useCallback, startTransition } from "react"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CardTile } from "@/components/shared/card-tile"
+import { CardTileSkeleton } from "@/components/shared/card-tile-skeleton"
 import { CardDetailModal } from "@/components/shared/card-detail-modal"
 import { QuickFilterBar } from "@/components/shared/quick-filter-bar"
 import type { MetaFilter } from "@/lib/types"
-import { MOCK_CARDS } from "@/lib/mock-data"
 import { useAppStore } from "@/lib/store"
+import { useSearchCards } from "@/hooks/use-tcg-data"
 import type { PokemonCard, CardFilters } from "@/lib/types"
 
 const CARDS_PER_PAGE = 20
@@ -30,63 +31,67 @@ export function DatabaseScreen({
   const [filters, setFilters] = useState<CardFilters>(initialFilters ?? emptyFilters)
   const [metaFilters, setMetaFilters] = useState<MetaFilter[]>([])
   const [selectedCard, setSelectedCard] = useState<PokemonCard | null>(null)
-  const [visibleCount, setVisibleCount] = useState(CARDS_PER_PAGE)
+  const [page, setPage] = useState(1)
+  const [allFetchedCards, setAllFetchedCards] = useState<PokemonCard[]>([])
   const cardStates = useAppStore((s) => s.cardStates)
 
-  const allCards = useMemo(() => {
-    return MOCK_CARDS.map((c) => ({
+  // API search
+  const { result, loading, error } = useSearchCards({
+    q: query.trim() || undefined,
+    page,
+    pageSize: CARDS_PER_PAGE,
+    filters,
+  })
+
+  // Accumulate cards across pages
+  useEffect(() => {
+    if (!result) return
+    startTransition(() => {
+      if (page === 1) {
+        setAllFetchedCards(result.cards)
+      } else {
+        setAllFetchedCards((prev) => [...prev, ...result.cards])
+      }
+    })
+  }, [result, page])
+
+  // Reset page when filters/query change
+  const handleFiltersChange = useCallback((f: CardFilters) => {
+    setFilters(f)
+    setPage(1)
+    setAllFetchedCards([])
+  }, [])
+
+  const handleQueryChange = useCallback((q: string) => {
+    setQuery(q)
+    setPage(1)
+    setAllFetchedCards([])
+  }, [])
+
+  // Overlay user card states
+  const cardsWithStatus = useMemo(() => {
+    return allFetchedCards.map((c) => ({
       ...c,
       status: cardStates[c.id]?.status ?? c.status,
     }))
-  }, [cardStates])
+  }, [allFetchedCards, cardStates])
 
+  // Apply meta-filters client-side (API doesn't know user state)
   const filtered = useMemo(() => {
-    let results = allCards
-
-    if (query) {
-      const q = query.toLowerCase()
-      results = results.filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          c.set.toLowerCase().includes(q) ||
-          c.artist.toLowerCase().includes(q)
-      )
-    }
-    if (filters.rarity.length) {
-      results = results.filter((c) => filters.rarity.includes(c.rarity))
-    }
-    if (filters.artist.length) {
-      results = results.filter((c) => filters.artist.includes(c.artist))
-    }
-    if (filters.set.length) {
-      results = results.filter((c) => filters.set.includes(c.set))
-    }
-    if (filters.type.length) {
-      results = results.filter((c) => filters.type.includes(c.type))
-    }
-    // Meta-filters
+    let results = cardsWithStatus
     if (metaFilters.includes("owned")) {
       results = results.filter((c) => c.status === "owned")
     }
     if (metaFilters.includes("wishlist")) {
       results = results.filter((c) => c.status === "wishlist")
     }
-
     return results
-  }, [allCards, query, filters, metaFilters])
+  }, [cardsWithStatus, metaFilters])
 
-  const visible = filtered.slice(0, visibleCount)
-  const hasMore = visibleCount < filtered.length
+  const totalCount = result?.totalCount ?? 0
+  const hasMore = allFetchedCards.length < totalCount
 
-  function handleFiltersChange(f: CardFilters) {
-    setFilters(f)
-    setVisibleCount(CARDS_PER_PAGE)
-  }
-
-  function handleQueryChange(q: string) {
-    setQuery(q)
-    setVisibleCount(CARDS_PER_PAGE)
-  }
+  const isFirstLoad = loading && allFetchedCards.length === 0
 
   return (
     <div className="flex flex-col gap-4 px-4 pt-4">
@@ -102,7 +107,11 @@ export function DatabaseScreen({
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">Browse All Cards</h1>
           <p className="text-xs text-muted-foreground">
-            {filtered.length} card{filtered.length !== 1 && "s"}
+            {totalCount > 0
+              ? `${totalCount.toLocaleString()} card${totalCount !== 1 ? "s" : ""}`
+              : loading
+                ? "Searching..."
+                : `${filtered.length} card${filtered.length !== 1 ? "s" : ""}`}
           </p>
         </div>
       </div>
@@ -118,27 +127,41 @@ export function DatabaseScreen({
       />
 
       {/* Card grid */}
-      {visible.length === 0 ? (
+      {isFirstLoad ? (
+        <div className="grid grid-cols-2 gap-3 pb-4 md:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <CardTileSkeleton key={i} />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="py-16 text-center">
           <p className="text-sm text-muted-foreground">No cards found</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 pb-4 md:grid-cols-4">
-          {visible.map((card) => (
+          {filtered.map((card) => (
             <CardTile key={card.id} card={card} onTap={setSelectedCard} />
           ))}
         </div>
       )}
 
       {/* Load more */}
-      {hasMore && (
+      {hasMore && !isFirstLoad && (
         <div className="flex justify-center pb-6">
-          <Button
-            variant="outline"
-            onClick={() => setVisibleCount((v) => v + CARDS_PER_PAGE)}
-          >
-            Load more ({filtered.length - visibleCount} remaining)
-          </Button>
+          {loading ? (
+            <div className="grid w-full grid-cols-2 gap-3 md:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <CardTileSkeleton key={i} />
+              ))}
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Load more ({(totalCount - allFetchedCards.length).toLocaleString()} remaining)
+            </Button>
+          )}
         </div>
       )}
 
