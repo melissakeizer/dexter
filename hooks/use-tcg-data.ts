@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useMemo, startTransition } from "react"
+import { useState, useEffect, useMemo, startTransition } from "react"
 import type { PokemonCard, CachedSet, CachedMeta, CardFilters, TcgCardsResponse } from "@/lib/types"
 import { MOCK_CARDS, MOCK_TYPES, MOCK_RARITIES } from "@/lib/mock-data"
 import {
@@ -19,17 +19,13 @@ import {
 const DEFAULT_META: CachedMeta = { types: MOCK_TYPES, rarities: MOCK_RARITIES, subtypes: [] }
 
 export function useSets() {
-  // Start with empty array (deterministic for SSR), hydrate from localStorage in effect
+  // Deterministic initial value for SSR; localStorage hydration happens in effect
   const [sets, setSets] = useState<CachedSet[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const fetched = useRef(false)
 
   useEffect(() => {
-    if (fetched.current) return
-    fetched.current = true
-
-    // Hydrate from localStorage first
+    // Hydrate from localStorage first (synchronous, idempotent)
     const cached = getCachedSets()
     if (cached && cached.length > 0) {
       startTransition(() => setSets(cached))
@@ -61,6 +57,7 @@ export function useSets() {
         })
       })
 
+    // Cleanup aborts in-flight fetch; React will re-run the effect on remount
     return () => controller.abort()
   }, [])
 
@@ -70,17 +67,13 @@ export function useSets() {
 // ── useMeta ──
 
 export function useMeta() {
-  // Start with deterministic defaults (safe for SSR), hydrate from localStorage in effect
+  // Deterministic initial value for SSR; localStorage hydration happens in effect
   const [meta, setMeta] = useState<CachedMeta>(DEFAULT_META)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const fetched = useRef(false)
 
   useEffect(() => {
-    if (fetched.current) return
-    fetched.current = true
-
-    // Hydrate from localStorage first
+    // Hydrate from localStorage first (synchronous, idempotent)
     const cached = getCachedMeta()
     if (cached) {
       startTransition(() => setMeta(cached))
@@ -112,6 +105,7 @@ export function useMeta() {
         })
       })
 
+    // Cleanup aborts in-flight fetch; React will re-run the effect on remount
     return () => controller.abort()
   }, [])
 
@@ -214,11 +208,11 @@ export function useSearchCards(opts: UseSearchCardsOpts) {
 export function useFeaturedCards(setId: string | undefined, limit = 8) {
   const [cards, setCards] = useState<PokemonCard[]>([])
   const [loading, setLoading] = useState(false)
-  const fetched = useRef<string | null>(null)
 
+  // Deps array [setId, limit] prevents duplicate fetches;
+  // abort controller handles cleanup on unmount / strict-mode remount.
   useEffect(() => {
-    if (!setId || fetched.current === setId) return
-    fetched.current = setId
+    if (!setId) return
 
     const controller = new AbortController()
     startTransition(() => setLoading(true))
