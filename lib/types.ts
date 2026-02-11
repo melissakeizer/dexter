@@ -38,10 +38,15 @@ export type BinderColor =
   | "orange"
   | "black"
 
+export type PocketLayout = 4 | 9 | 12
+
 export interface Binder {
   id: string
   name: string
   color: BinderColor
+  zipColor: BinderColor
+  layout: PocketLayout
+  createdAt: number
   pages: BinderPage[]
 }
 

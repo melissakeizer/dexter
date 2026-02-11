@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { useAppStore } from "@/lib/store"
-import type { Binder, BinderColor } from "@/lib/types"
+import type { Binder, BinderColor, PocketLayout } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 const BINDER_COLORS: { value: BinderColor; bg: string; ring: string }[] = [
@@ -25,8 +25,31 @@ const BINDER_COLORS: { value: BinderColor; bg: string; ring: string }[] = [
   { value: "black", bg: "bg-neutral-800", ring: "ring-neutral-800" },
 ]
 
-function getBinderColorClasses(color: BinderColor) {
-  return BINDER_COLORS.find((c) => c.value === color) ?? BINDER_COLORS[0]
+const LAYOUT_OPTIONS: { value: PocketLayout; label: string; desc: string }[] = [
+  { value: 4, label: "2\u00d72", desc: "4-pocket" },
+  { value: 9, label: "3\u00d73", desc: "9-pocket" },
+  { value: 12, label: "3\u00d74", desc: "12-pocket" },
+]
+
+function getColorBg(color: BinderColor) {
+  return BINDER_COLORS.find((c) => c.value === color)?.bg ?? "bg-neutral-500"
+}
+
+function BinderCover({ color, zipColor, layout }: { color: BinderColor; zipColor: BinderColor; layout: PocketLayout }) {
+  return (
+    <div className={cn("relative flex h-14 w-11 shrink-0 overflow-hidden rounded-lg shadow-sm sm:h-16 sm:w-12", getColorBg(color))}>
+      {/* Zip accent strip */}
+      <div className={cn("absolute right-0 top-0 h-full w-1.5 sm:w-2", getColorBg(zipColor))} />
+      {/* Layout badge */}
+      <span className="absolute bottom-1 left-1 rounded bg-black/30 px-1 text-[9px] font-bold leading-tight text-white">
+        {layout}
+      </span>
+      {/* Book icon */}
+      <div className="flex flex-1 items-center justify-center">
+        <BookOpen className="h-5 w-5 text-white/80 sm:h-6 sm:w-6" />
+      </div>
+    </div>
+  )
 }
 
 interface BinderLibraryScreenProps {
@@ -39,12 +62,16 @@ export function BinderLibraryScreen({ onSelectBinder }: BinderLibraryScreenProps
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState("")
   const [newColor, setNewColor] = useState<BinderColor>("blue")
+  const [newZipColor, setNewZipColor] = useState<BinderColor>("red")
+  const [newLayout, setNewLayout] = useState<PocketLayout>(9)
 
   function handleCreate() {
     const name = newName.trim() || "Untitled Binder"
-    addBinder(name, newColor)
+    addBinder(name, newColor, newZipColor, newLayout)
     setNewName("")
     setNewColor("blue")
+    setNewZipColor("red")
+    setNewLayout(9)
     setShowCreate(false)
   }
 
@@ -68,7 +95,6 @@ export function BinderLibraryScreen({ onSelectBinder }: BinderLibraryScreenProps
       {/* Binder list */}
       <div className="flex flex-col gap-2">
         {binders.map((binder) => {
-          const colorClasses = getBinderColorClasses(binder.color)
           const filledSlots = binder.pages.reduce(
             (acc, p) => acc + p.slots.filter((s) => s.cardId).length,
             0
@@ -79,27 +105,17 @@ export function BinderLibraryScreen({ onSelectBinder }: BinderLibraryScreenProps
               onClick={() => onSelectBinder(binder)}
               className="flex items-center gap-3 rounded-2xl bg-card p-3 ring-1 ring-border transition-all hover:ring-primary/30 hover:shadow-md active:scale-[0.99] sm:p-4"
             >
-              {/* Binder cover icon */}
-              <div
-                className={cn(
-                  "flex h-14 w-11 shrink-0 items-center justify-center rounded-lg shadow-sm sm:h-16 sm:w-12",
-                  colorClasses.bg
-                )}
-              >
-                <BookOpen className="h-5 w-5 text-white sm:h-6 sm:w-6" />
-              </div>
-              {/* Info */}
+              <BinderCover color={binder.color} zipColor={binder.zipColor} layout={binder.layout} />
               <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
                 <span className="truncate text-sm font-semibold text-foreground sm:text-base">
                   {binder.name}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  4-pocket &middot; {binder.pages.length}{" "}
+                  {binder.layout}-pocket &middot; {binder.pages.length}{" "}
                   {binder.pages.length === 1 ? "page" : "pages"} &middot;{" "}
                   {filledSlots} cards
                 </span>
               </div>
-              {/* Chevron */}
               <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
             </button>
           )
@@ -122,6 +138,7 @@ export function BinderLibraryScreen({ onSelectBinder }: BinderLibraryScreenProps
             <DialogTitle>New Binder</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
+            {/* Name */}
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="binder-name">Name</Label>
               <Input
@@ -132,8 +149,10 @@ export function BinderLibraryScreen({ onSelectBinder }: BinderLibraryScreenProps
                 autoFocus
               />
             </div>
+
+            {/* Cover color */}
             <div className="flex flex-col gap-1.5">
-              <Label>Color</Label>
+              <Label>Cover Color</Label>
               <div className="flex items-center gap-2">
                 {BINDER_COLORS.map((c) => (
                   <button
@@ -151,6 +170,55 @@ export function BinderLibraryScreen({ onSelectBinder }: BinderLibraryScreenProps
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Zip color */}
+            <div className="flex flex-col gap-1.5">
+              <Label>Zip Color</Label>
+              <div className="flex items-center gap-2">
+                {BINDER_COLORS.map((c) => (
+                  <button
+                    key={c.value}
+                    onClick={() => setNewZipColor(c.value)}
+                    className={cn(
+                      "h-8 w-8 rounded-full transition-all",
+                      c.bg,
+                      newZipColor === c.value
+                        ? "ring-2 ring-offset-2 ring-offset-background " + c.ring
+                        : "opacity-60 hover:opacity-100"
+                    )}
+                  >
+                    <span className="sr-only">{c.value}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Layout */}
+            <div className="flex flex-col gap-1.5">
+              <Label>Pocket Layout</Label>
+              <div className="flex items-center gap-2">
+                {LAYOUT_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setNewLayout(opt.value)}
+                    className={cn(
+                      "flex flex-1 flex-col items-center gap-0.5 rounded-xl border-2 py-2.5 text-sm font-medium transition-all",
+                      newLayout === opt.value
+                        ? "border-primary bg-primary/5 text-primary"
+                        : "border-border text-muted-foreground hover:border-primary/30"
+                    )}
+                  >
+                    <span className="text-base font-bold">{opt.label}</span>
+                    <span className="text-[10px]">{opt.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div className="flex items-center justify-center pt-1">
+              <BinderCover color={newColor} zipColor={newZipColor} layout={newLayout} />
             </div>
           </div>
           <DialogFooter>

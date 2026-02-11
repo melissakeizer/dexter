@@ -2,25 +2,31 @@
 
 import { useState, useMemo } from "react"
 import Image from "next/image"
-import { Plus, ArrowLeftRight, Trash2 } from "lucide-react"
+import { Plus, X } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAppStore } from "@/lib/store"
 import { useCardsById } from "@/hooks/use-tcg-data"
 import { CardPickerModal } from "./card-picker-modal"
-import type { BinderPage } from "@/lib/types"
+import type { BinderPage, PocketLayout } from "@/lib/types"
 import { cn } from "@/lib/utils"
+
+const GRID_CLASSES: Record<PocketLayout, string> = {
+  4: "grid-cols-2",
+  9: "grid-cols-3",
+  12: "grid-cols-3",
+}
 
 interface SlotGridProps {
   binderId: string
   page: BinderPage
+  layout: PocketLayout
 }
 
-export function SlotGrid({ binderId, page }: SlotGridProps) {
+export function SlotGrid({ binderId, page, layout }: SlotGridProps) {
   const cardStates = useAppStore((s) => s.cardStates)
   const setSlotCard = useAppStore((s) => s.setSlotCard)
   const clearSlot = useAppStore((s) => s.clearSlot)
 
-  // Collect all card IDs that need resolving
   const slotCardIds = useMemo(
     () => page.slots.map((s) => s.cardId).filter((id): id is string => id !== null),
     [page.slots]
@@ -28,14 +34,11 @@ export function SlotGrid({ binderId, page }: SlotGridProps) {
 
   const { cards: resolvedCards, loading: cardsLoading } = useCardsById(slotCardIds)
 
-  // Picker for empty slots (tap to add)
   const [pickerSlotId, setPickerSlotId] = useState<string | null>(null)
-  // Replace picker for filled slots
-  const [replaceSlotId, setReplaceSlotId] = useState<string | null>(null)
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-2.5 rounded-2xl bg-muted/40 p-3 sm:gap-3 sm:p-4">
+      <div className={cn("grid gap-2 rounded-2xl bg-muted/40 p-3 sm:gap-3 sm:p-4", GRID_CLASSES[layout])}>
         {page.slots.map((slot) => {
           const card = slot.cardId ? resolvedCards.get(slot.cardId) : null
           const state = slot.cardId ? cardStates[slot.cardId] : null
@@ -52,15 +55,15 @@ export function SlotGrid({ binderId, page }: SlotGridProps) {
                 onClick={() => setPickerSlotId(slot.id)}
                 className="flex aspect-[2.5/3.5] items-center justify-center rounded-xl border-2 border-dashed border-border bg-card transition-all active:scale-[0.97]"
               >
-                <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
-                  <Plus className="h-6 w-6" />
-                  <span className="text-xs font-medium">Add card</span>
+                <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                  <Plus className="h-5 w-5" />
+                  <span className="text-[10px] font-medium">Add</span>
                 </div>
               </button>
             )
           }
 
-          {/* Loading skeleton while card resolves */}
+          {/* Loading skeleton */}
           if (isLoadingCard) {
             return (
               <div key={slot.id} className="overflow-hidden rounded-xl">
@@ -69,7 +72,7 @@ export function SlotGrid({ binderId, page }: SlotGridProps) {
             )
           }
 
-          {/* Card not found (shouldn't happen often) */}
+          {/* Card not found */}
           if (!card) {
             return (
               <button
@@ -78,9 +81,9 @@ export function SlotGrid({ binderId, page }: SlotGridProps) {
                 onClick={() => setPickerSlotId(slot.id)}
                 className="flex aspect-[2.5/3.5] items-center justify-center rounded-xl border-2 border-dashed border-border bg-card transition-all active:scale-[0.97]"
               >
-                <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
-                  <Plus className="h-6 w-6" />
-                  <span className="text-xs font-medium">Add card</span>
+                <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                  <Plus className="h-5 w-5" />
+                  <span className="text-[10px] font-medium">Add</span>
                 </div>
               </button>
             )
@@ -88,58 +91,44 @@ export function SlotGrid({ binderId, page }: SlotGridProps) {
 
           {/* Filled slot */}
           return (
-            <div key={slot.id} className="overflow-hidden rounded-xl shadow-md">
-              {/* Card image */}
-              <div className="relative">
-                <div
-                  className={cn(
-                    "relative aspect-[2.5/3.5] w-full",
-                    isWishlistOnly && "opacity-30",
-                  )}
-                >
-                  <Image
-                    src={card.imageUrl || "/placeholder.svg"}
-                    alt={card.name}
-                    fill
-                    className="object-contain"
-                    sizes="(max-width: 768px) 42vw, 20vw"
-                  />
-                </div>
-
-                {/* Wishlist label */}
-                {isWishlistOnly && (
-                  <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-foreground/80 px-2 py-0.5 text-[10px] font-medium text-background pointer-events-none">
-                    Wishlist
-                  </span>
+            <div key={slot.id} className="group relative overflow-hidden rounded-xl shadow-sm">
+              <div
+                className={cn(
+                  "relative aspect-[2.5/3.5] w-full",
+                  isWishlistOnly && "opacity-30",
                 )}
+              >
+                <Image
+                  src={card.imageUrl || "/placeholder.svg"}
+                  alt={card.name}
+                  fill
+                  className="object-contain"
+                  sizes={layout === 4 ? "(max-width: 768px) 42vw, 20vw" : "(max-width: 768px) 30vw, 15vw"}
+                />
               </div>
 
-              {/* Action bar */}
-              <div className="flex h-11 items-stretch bg-muted/60">
-                <button
-                  type="button"
-                  onClick={() => setReplaceSlotId(slot.id)}
-                  className="flex flex-1 items-center justify-center text-muted-foreground transition-colors active:bg-muted"
-                  aria-label={`Replace ${card.name}`}
-                >
-                  <ArrowLeftRight className="h-4 w-4" />
-                </button>
-                <div className="w-px self-stretch bg-border" />
-                <button
-                  type="button"
-                  onClick={() => clearSlot(binderId, page.id, slot.id)}
-                  className="flex flex-1 items-center justify-center text-destructive transition-colors active:bg-muted"
-                  aria-label={`Remove ${card.name} from slot`}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
+              {/* Wishlist label */}
+              {isWishlistOnly && (
+                <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-foreground/80 px-2 py-0.5 text-[10px] font-medium text-background pointer-events-none">
+                  Wishlist
+                </span>
+              )}
+
+              {/* Remove button */}
+              <button
+                type="button"
+                onClick={() => clearSlot(binderId, page.id, slot.id)}
+                className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white transition-opacity active:bg-black/80 sm:h-5 sm:w-5 sm:opacity-0 sm:group-hover:opacity-100"
+                aria-label={`Remove ${card.name}`}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
             </div>
           )
         })}
       </div>
 
-      {/* Picker for empty slots */}
+      {/* Card picker */}
       <CardPickerModal
         open={!!pickerSlotId}
         onOpenChange={(open) => !open && setPickerSlotId(null)}
@@ -147,18 +136,6 @@ export function SlotGrid({ binderId, page }: SlotGridProps) {
           if (pickerSlotId) {
             setSlotCard(binderId, page.id, pickerSlotId, cardId)
             setPickerSlotId(null)
-          }
-        }}
-      />
-
-      {/* Picker for replacing a filled slot */}
-      <CardPickerModal
-        open={!!replaceSlotId}
-        onOpenChange={(open) => !open && setReplaceSlotId(null)}
-        onSelect={(cardId) => {
-          if (replaceSlotId) {
-            setSlotCard(binderId, page.id, replaceSlotId, cardId)
-            setReplaceSlotId(null)
           }
         }}
       />

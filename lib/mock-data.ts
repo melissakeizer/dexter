@@ -93,6 +93,9 @@ export const DEFAULT_BINDERS: Binder[] = [
     id: "binder-1",
     name: "Main Binder",
     color: "red",
+    zipColor: "blue",
+    layout: 4,
+    createdAt: 1700000000000,
     pages: [
       {
         id: "page-1",

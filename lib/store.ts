@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import type { Binder, BinderColor, CardFilters, CardStatus, MetaFilter } from "./types"
+import type { Binder, BinderColor, PocketLayout, CardFilters, CardStatus, MetaFilter } from "./types"
 import { MOCK_CARDS, DEFAULT_BINDERS } from "./mock-data"
 
 function generateId() {
@@ -28,7 +28,7 @@ interface AppStore {
 
   // ── Binders ──
   binders: Binder[]
-  addBinder: (name: string, color: BinderColor) => void
+  addBinder: (name: string, color: BinderColor, zipColor: BinderColor, layout: PocketLayout) => void
   deleteBinder: (binderId: string) => void
   addPage: (binderId: string) => void
   setSlotCard: (binderId: string, pageId: string, slotId: string, cardId: string | null) => void
@@ -94,7 +94,7 @@ export const useAppStore = create<AppStore>()(
       // ── Binders ──
       binders: DEFAULT_BINDERS,
 
-      addBinder: (name, color) =>
+      addBinder: (name, color, zipColor, layout) =>
         set((state) => ({
           binders: [
             ...state.binders,
@@ -102,10 +102,13 @@ export const useAppStore = create<AppStore>()(
               id: generateId(),
               name,
               color,
+              zipColor,
+              layout,
+              createdAt: Date.now(),
               pages: [
                 {
                   id: generateId(),
-                  slots: Array.from({ length: 4 }, (_, i) => ({
+                  slots: Array.from({ length: layout }, (_, i) => ({
                     id: generateId(),
                     cardId: null,
                     position: i,
@@ -131,7 +134,7 @@ export const useAppStore = create<AppStore>()(
                 ...b.pages,
                 {
                   id: generateId(),
-                  slots: Array.from({ length: 4 }, (_, i) => ({
+                  slots: Array.from({ length: b.layout }, (_, i) => ({
                     id: generateId(),
                     cardId: null,
                     position: i,
@@ -154,7 +157,7 @@ export const useAppStore = create<AppStore>()(
     }),
     {
       name: "pokemon-binder-storage",
-      version: 1,
+      version: 2,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Record<string, unknown>
         if (version === 0) {
@@ -171,6 +174,18 @@ export const useAppStore = create<AppStore>()(
               }
             }
             state.cardStates = newCardStates
+          }
+        }
+        if (version < 2) {
+          // Add layout, zipColor, createdAt to existing binders
+          const binders = state.binders as Binder[] | undefined
+          if (binders) {
+            state.binders = binders.map((b) => ({
+              ...b,
+              layout: b.layout ?? 4,
+              zipColor: b.zipColor ?? b.color,
+              createdAt: b.createdAt ?? Date.now(),
+            }))
           }
         }
         return state as unknown as AppStore

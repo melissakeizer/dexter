@@ -18,7 +18,7 @@ export function BinderDetailScreen({ binder, onBack }: BinderDetailScreenProps) 
     (acc, p) => acc + p.slots.filter((s) => s.cardId).length,
     0
   )
-  const totalSlots = binder.pages.length * 4
+  const totalSlots = binder.pages.length * binder.layout
 
   return (
     <div className="flex flex-col gap-4 px-4 pb-24 pt-4">
@@ -38,7 +38,7 @@ export function BinderDetailScreen({ binder, onBack }: BinderDetailScreenProps) 
             {binder.name}
           </h1>
           <p className="text-xs text-muted-foreground">
-            4-pocket &middot; {binder.pages.length}{" "}
+            {binder.layout}-pocket &middot; {binder.pages.length}{" "}
             {binder.pages.length === 1 ? "page" : "pages"} &middot;{" "}
             {filledSlots}/{totalSlots} slots filled
           </p>
@@ -52,7 +52,7 @@ export function BinderDetailScreen({ binder, onBack }: BinderDetailScreenProps) 
             <h2 className="mb-2 text-sm font-semibold text-muted-foreground">
               Page {idx + 1}
             </h2>
-            <SlotGrid binderId={binder.id} page={page} />
+            <SlotGrid binderId={binder.id} page={page} layout={binder.layout} />
             {idx < binder.pages.length - 1 && (
               <div className="mt-6 border-t border-border" />
             )}

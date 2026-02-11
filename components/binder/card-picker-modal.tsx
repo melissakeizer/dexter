@@ -1,6 +1,9 @@
 "use client"
 
+import { useState, useMemo } from "react"
 import Image from "next/image"
+import { Search } from "lucide-react"
+import { Input } from "@/components/ui/input"
 import {
   Drawer,
   DrawerContent,
@@ -22,6 +25,19 @@ interface CardPickerModalProps {
 export function CardPickerModal({ open, onOpenChange, onSelect }: CardPickerModalProps) {
   const { cards: ownedCards, loading: ownedLoading } = useUserCards("owned")
   const { cards: wishlistCards, loading: wishlistLoading } = useUserCards("wishlist")
+  const [query, setQuery] = useState("")
+
+  const filteredOwned = useMemo(() => {
+    if (!query.trim()) return ownedCards
+    const q = query.toLowerCase()
+    return ownedCards.filter((c) => c.name.toLowerCase().includes(q))
+  }, [ownedCards, query])
+
+  const filteredWishlist = useMemo(() => {
+    if (!query.trim()) return wishlistCards
+    const q = query.toLowerCase()
+    return wishlistCards.filter((c) => c.name.toLowerCase().includes(q))
+  }, [wishlistCards, query])
 
   function renderGrid(cards: PokemonCard[], loading: boolean) {
     if (loading && cards.length === 0) {
@@ -36,7 +52,7 @@ export function CardPickerModal({ open, onOpenChange, onSelect }: CardPickerModa
     if (cards.length === 0) {
       return (
         <p className="py-8 text-center text-sm text-muted-foreground">
-          No cards in this list
+          {query.trim() ? "No cards match your search" : "No cards in this list"}
         </p>
       )
     }
@@ -67,29 +83,41 @@ export function CardPickerModal({ open, onOpenChange, onSelect }: CardPickerModa
   }
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
+    <Drawer open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) setQuery("") }}>
       <DrawerContent className="max-h-[80dvh]">
         <DrawerHeader>
           <DrawerTitle>Choose a Card</DrawerTitle>
         </DrawerHeader>
-        <div className="px-4">
+        <div className="flex flex-col gap-3 px-4">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search cards..."
+              className="pl-9"
+            />
+          </div>
+
+          {/* Tabs */}
           <Tabs defaultValue="owned" className="w-full">
             <TabsList className="w-full">
               <TabsTrigger value="owned" className="flex-1">
-                Owned ({ownedCards.length})
+                Owned ({filteredOwned.length})
               </TabsTrigger>
               <TabsTrigger value="wishlist" className="flex-1">
-                Wishlist ({wishlistCards.length})
+                Wishlist ({filteredWishlist.length})
               </TabsTrigger>
             </TabsList>
             <TabsContent value="owned" className="mt-3">
               <ScrollArea className="h-[50dvh]">
-                {renderGrid(ownedCards, ownedLoading)}
+                {renderGrid(filteredOwned, ownedLoading)}
               </ScrollArea>
             </TabsContent>
             <TabsContent value="wishlist" className="mt-3">
               <ScrollArea className="h-[50dvh]">
-                {renderGrid(wishlistCards, wishlistLoading)}
+                {renderGrid(filteredWishlist, wishlistLoading)}
               </ScrollArea>
             </TabsContent>
           </Tabs>
