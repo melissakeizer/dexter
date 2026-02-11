@@ -190,6 +190,47 @@ export function isCuratedCacheStale(): boolean {
   return cached.windowKey !== getCuratedWindowKey()
 }
 
+// ── Related cards by name ──
+
+const STALE_RELATED = 24 * 60 * 60 * 1000 // 24h
+
+function normalizeCardName(name: string): string {
+  return name.toLowerCase().trim()
+}
+
+function relatedKey(name: string): string {
+  return `tcg_related_${normalizeCardName(name)}`
+}
+
+export function getRelatedCache(name: string): { cards: PokemonCard[]; fetchedAt: number } | null {
+  try {
+    const raw = localStorage.getItem(relatedKey(name))
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+export function setRelatedCache(name: string, cards: PokemonCard[]): void {
+  try {
+    localStorage.setItem(relatedKey(name), JSON.stringify({ cards, fetchedAt: Date.now() }))
+    setTimestamp(relatedKey(name))
+  } catch { /* quota exceeded */ }
+}
+
+export function isRelatedCacheStale(name: string): boolean {
+  const ts = getTimestamps()[relatedKey(name)]
+  if (!ts) return true
+  return Date.now() - ts > STALE_RELATED
+}
+
+export function getLocalCardsByName(name: string, excludeId: string): PokemonCard[] {
+  const normalized = normalizeCardName(name)
+  return Array.from(cardMap.values()).filter(
+    (c) => normalizeCardName(c.name) === normalized && c.id !== excludeId
+  )
+}
+
 // ── Card cache persistence ──
 
 function persistCardCache() {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback, startTransition } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef, startTransition } from "react"
 import type { PokemonCard, CachedSet, CachedMeta, CardFilters, TcgCardsResponse } from "@/lib/types"
 import { MOCK_CARDS, MOCK_TYPES, MOCK_RARITIES } from "@/lib/mock-data"
 import {
@@ -18,7 +18,12 @@ import {
   getCuratedCache,
   setCuratedCache,
   isCuratedCacheStale,
+  getRelatedCache,
+  setRelatedCache,
+  isRelatedCacheStale,
+  getLocalCardsByName,
 } from "@/lib/card-cache"
+import { dedupeById } from "@/lib/utils"
 
 // ── useSets ──
 
@@ -324,6 +329,96 @@ export function useCuratedCards() {
   }, [])
 
   return { cards, loading, stale, error, retry }
+}
+
+// ── useRelatedCards ──
+
+export function useRelatedCards(card: PokemonCard | null) {
+  const [cards, setCards] = useState<PokemonCard[]>([])
+  const [loading, setLoading] = useState(false)
+  const controllerRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    // Abort any previous in-flight request
+    controllerRef.current?.abort()
+    controllerRef.current = null
+
+    if (!card) {
+      setCards([])
+      setLoading(false)
+      return
+    }
+
+    const cardName = card.name
+    const cardId = card.id
+
+    // 1. Warm from in-memory cardMap (synchronous)
+    const localHits = getLocalCardsByName(cardName, cardId)
+
+    // 2. Check localStorage related-cards cache
+    const cached = getRelatedCache(cardName)
+    const isFresh = cached && !isRelatedCacheStale(cardName)
+
+    if (isFresh) {
+      const merged = dedupeById([...cached.cards, ...localHits])
+        .filter((c) => c.id !== cardId)
+        .slice(0, 12)
+      setCards(merged)
+      setLoading(false)
+      return // No fetch needed
+    }
+
+    // Show what we have while we revalidate
+    if (cached) {
+      const merged = dedupeById([...cached.cards, ...localHits])
+        .filter((c) => c.id !== cardId)
+        .slice(0, 12)
+      setCards(merged)
+    } else if (localHits.length > 0) {
+      setCards(localHits.slice(0, 12))
+    } else {
+      setCards([])
+      startTransition(() => setLoading(true))
+    }
+
+    // 3. Fetch from API
+    const controller = new AbortController()
+    controllerRef.current = controller
+
+    const escapedName = cardName.replace(/"/g, '\\"')
+    const params = new URLSearchParams()
+    params.set("q", `name:"${escapedName}"`)
+    params.set("pageSize", "20")
+
+    fetch(`/api/tcg/cards?${params.toString()}`, { signal: controller.signal })
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`)
+        return r.json()
+      })
+      .then((data: TcgCardsResponse) => {
+        const allCards = dedupeById([...data.cards, ...localHits])
+        const displayCards = allCards.filter((c) => c.id !== cardId).slice(0, 12)
+
+        putCardsInCacheAndPersist(data.cards)
+        setRelatedCache(cardName, allCards.filter((c) => c.id !== cardId))
+
+        startTransition(() => {
+          setCards(displayCards)
+          setLoading(false)
+        })
+      })
+      .catch((err) => {
+        if (err.name === "AbortError") return
+        console.error("useRelatedCards error:", err)
+        startTransition(() => setLoading(false))
+      })
+
+    return () => {
+      controller.abort()
+    }
+  }, [card?.id, card?.name]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { cards, loading }
 }
 
 // ── useCardsById ──

@@ -18,7 +18,7 @@ import { ArrowLeft, Check, Heart, ChevronRight } from "lucide-react"
 import type { PokemonCard } from "@/lib/types"
 import { useAppStore } from "@/lib/store"
 import { cn, dedupeById } from "@/lib/utils"
-import { useSearchCards } from "@/hooks/use-tcg-data"
+import { useSearchCards, useRelatedCards } from "@/hooks/use-tcg-data"
 
 // ── Types ──
 
@@ -213,17 +213,9 @@ function CardDetailView({ card, onChipTap, onRelatedCardTap }: CardDetailViewPro
 // ── Related Cards Section ──
 
 function RelatedCards({ card, onCardTap }: { card: PokemonCard; onCardTap: (c: PokemonCard) => void }) {
-  const { result, loading } = useSearchCards({
-    rawQuery: `name:"${card.name}"`,
-    pageSize: 13,
-  })
+  const { cards, loading } = useRelatedCards(card)
 
-  const relatedCards = useMemo(() => {
-    if (!result) return []
-    return result.cards.filter((c) => c.id !== card.id).slice(0, 12)
-  }, [result, card.id])
-
-  if (!loading && relatedCards.length === 0) return null
+  if (!loading && cards.length === 0) return null
 
   return (
     <div className="flex flex-col gap-3 pb-6">
@@ -236,7 +228,7 @@ function RelatedCards({ card, onCardTap }: { card: PokemonCard; onCardTap: (c: P
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-3 md:grid-cols-6">
-          {relatedCards.map((c) => (
+          {cards.map((c) => (
             <CardTile key={c.id} card={c} onTap={onCardTap} showOwned={false} showLiked={false} />
           ))}
         </div>
