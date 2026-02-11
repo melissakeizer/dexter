@@ -110,4 +110,5 @@ export interface TcgCardsResponse {
   totalCount: number
   page: number
   pageSize: number
+  stale?: boolean
 }

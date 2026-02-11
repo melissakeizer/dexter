@@ -10,43 +10,56 @@ import { QuickFilterBar } from "@/components/shared/quick-filter-bar"
 import type { MetaFilter } from "@/lib/types"
 import { useAppStore } from "@/lib/store"
 import { dedupeById } from "@/lib/utils"
-import { useSearchCards } from "@/hooks/use-tcg-data"
+import { useSearchCards, useCuratedCards } from "@/hooks/use-tcg-data"
 import type { PokemonCard, CardFilters } from "@/lib/types"
 
 const CARDS_PER_PAGE = 20
 
 const emptyFilters: CardFilters = { rarity: [], artist: [], set: [], type: [] }
 
-interface DatabaseScreenProps {
+interface CuratedGalleryScreenProps {
   onBack: () => void
   initialFilters?: CardFilters
   initialQuery?: string
 }
 
-export function DatabaseScreen({
+export function CuratedGalleryScreen({
   onBack,
   initialFilters,
   initialQuery = "",
-}: DatabaseScreenProps) {
+}: CuratedGalleryScreenProps) {
   const [query, setQuery] = useState(initialQuery)
   const [filters, setFilters] = useState<CardFilters>(initialFilters ?? emptyFilters)
   const [metaFilters, setMetaFilters] = useState<MetaFilter[]>([])
   const [selectedCard, setSelectedCard] = useState<PokemonCard | null>(null)
   const [page, setPage] = useState(1)
   const [allFetchedCards, setAllFetchedCards] = useState<PokemonCard[]>([])
+  const [endReached, setEndReached] = useState(false)
   const cardStates = useAppStore((s) => s.cardStates)
 
-  // API search
-  const { result, loading, error } = useSearchCards({
+  // Is search active?
+  const hasSearch =
+    query.trim().length > 0 ||
+    Object.values(filters).flat().length > 0
+
+  // Curated cards (default mode)
+  const { cards: curatedCards, loading: curatedLoading, stale: curatedStale } = useCuratedCards()
+
+  // API search (search mode)
+  const { result, loading: searchLoading, stale: searchStale } = useSearchCards({
     q: query.trim() || undefined,
     page,
     pageSize: CARDS_PER_PAGE,
     filters,
+    enabled: hasSearch,
   })
 
-  // Accumulate cards across pages (dedupe to prevent duplicate keys)
+  // Accumulate search cards across pages
   useEffect(() => {
     if (!result) return
+    if (result.cards.length < CARDS_PER_PAGE) {
+      setEndReached(true)
+    }
     startTransition(() => {
       if (page === 1) {
         setAllFetchedCards(dedupeById(result.cards))
@@ -61,25 +74,25 @@ export function DatabaseScreen({
     setFilters(f)
     setPage(1)
     setAllFetchedCards([])
+    setEndReached(false)
   }, [])
 
   const handleQueryChange = useCallback((q: string) => {
     setQuery(q)
     setPage(1)
     setAllFetchedCards([])
+    setEndReached(false)
   }, [])
 
-  // Overlay user card states
-  const cardsWithStatus = useMemo(() => {
-    return allFetchedCards.map((c) => ({
+  // Choose card source: curated vs search results
+  const displayCards = useMemo(() => {
+    const source = hasSearch ? allFetchedCards : curatedCards
+    // Overlay user card states
+    let results = source.map((c) => ({
       ...c,
       status: cardStates[c.id]?.status ?? c.status,
     }))
-  }, [allFetchedCards, cardStates])
-
-  // Apply meta-filters client-side (API doesn't know user state)
-  const filtered = useMemo(() => {
-    let results = cardsWithStatus
+    // Apply meta-filters client-side
     if (metaFilters.includes("owned")) {
       results = results.filter((c) => c.status === "owned")
     }
@@ -87,12 +100,13 @@ export function DatabaseScreen({
       results = results.filter((c) => c.status === "wishlist")
     }
     return results
-  }, [cardsWithStatus, metaFilters])
+  }, [hasSearch, allFetchedCards, curatedCards, cardStates, metaFilters])
 
+  const loading = hasSearch ? searchLoading : curatedLoading
+  const isStale = hasSearch ? searchStale : curatedStale
   const totalCount = result?.totalCount ?? 0
-  const hasMore = allFetchedCards.length < totalCount
-
-  const isFirstLoad = loading && allFetchedCards.length === 0
+  const hasMore = hasSearch && !endReached && allFetchedCards.length < totalCount
+  const isFirstLoad = loading && displayCards.length === 0
 
   return (
     <div className="flex flex-col gap-4 px-4 pt-4">
@@ -106,13 +120,17 @@ export function DatabaseScreen({
           <ArrowLeft className="h-4 w-4" />
         </button>
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">Browse All Cards</h1>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">
+            {hasSearch ? "Search Results" : "Curated Gallery"}
+          </h1>
           <p className="text-xs text-muted-foreground">
-            {totalCount > 0
-              ? `${totalCount.toLocaleString()} card${totalCount !== 1 ? "s" : ""}`
-              : loading
-                ? "Searching..."
-                : `${filtered.length} card${filtered.length !== 1 ? "s" : ""}`}
+            {hasSearch
+              ? totalCount > 0
+                ? `${totalCount.toLocaleString()} card${totalCount !== 1 ? "s" : ""}`
+                : searchLoading
+                  ? "Searching..."
+                  : `${displayCards.length} card${displayCards.length !== 1 ? "s" : ""}`
+              : "Hand-picked rare & beautiful cards"}
           </p>
         </div>
       </div>
@@ -127,29 +145,39 @@ export function DatabaseScreen({
         onMetaFiltersChange={setMetaFilters}
       />
 
+      {/* Stale data indicator */}
+      {isStale && !isFirstLoad && displayCards.length > 0 && (
+        <div className="rounded-lg bg-muted px-3 py-2 text-center">
+          <p className="text-xs text-muted-foreground">Using cached results</p>
+        </div>
+      )}
+
       {/* Card grid */}
       {isFirstLoad ? (
-        <div className="grid grid-cols-2 gap-3 pb-4 md:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
+        <div className="grid grid-cols-3 gap-3 pb-4 md:grid-cols-6">
+          {Array.from({ length: 14 }).map((_, i) => (
             <CardTileSkeleton key={i} />
           ))}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : displayCards.length === 0 ? (
         <div className="py-16 text-center">
           <p className="text-sm text-muted-foreground">No cards found</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 pb-4 md:grid-cols-4">
-          {filtered.map((card) => (
+        <div className={hasSearch
+          ? "grid grid-cols-2 gap-3 pb-4 md:grid-cols-4"
+          : "grid grid-cols-3 gap-3 pb-4 md:grid-cols-6"
+        }>
+          {displayCards.map((card) => (
             <CardTile key={card.id} card={card} onTap={setSelectedCard} />
           ))}
         </div>
       )}
 
-      {/* Load more */}
+      {/* Load more (search mode only) */}
       {hasMore && !isFirstLoad && (
         <div className="flex justify-center pb-6">
-          {loading ? (
+          {searchLoading ? (
             <div className="grid w-full grid-cols-2 gap-3 md:grid-cols-4">
               {Array.from({ length: 4 }).map((_, i) => (
                 <CardTileSkeleton key={i} />
@@ -164,6 +192,13 @@ export function DatabaseScreen({
             </Button>
           )}
         </div>
+      )}
+
+      {/* Footer note (curated mode only) */}
+      {!hasSearch && !isFirstLoad && displayCards.length > 0 && (
+        <p className="pb-6 text-center text-xs text-muted-foreground">
+          Curated picks refresh every 6 hours
+        </p>
       )}
 
       {/* Card Detail */}

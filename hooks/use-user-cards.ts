@@ -5,6 +5,7 @@ import { useAppStore } from "@/lib/store"
 import { getCardFromCache } from "@/lib/card-cache"
 import { useCardsById } from "./use-tcg-data"
 import type { PokemonCard, CardStatus } from "@/lib/types"
+import { dedupeById } from "@/lib/utils"
 
 export function useUserCards(status: CardStatus) {
   const cardStates = useAppStore((s) => s.cardStates)
@@ -34,13 +35,13 @@ export function useUserCards(status: CardStatus) {
   // Fetch any missing cards from API
   const { cards: fetchedMap, loading } = useCardsById(missingIds)
 
-  // Combine cached + fetched
+  // Combine cached + fetched (dedupe: fetched cards may already be in cache after re-render)
   const cards = useMemo(() => {
     const all = [...cachedCards]
     for (const [, card] of fetchedMap) {
       all.push({ ...card, status })
     }
-    return all
+    return dedupeById(all)
   }, [cachedCards, fetchedMap, status])
 
   return { cards, loading }

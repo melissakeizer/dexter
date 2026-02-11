@@ -160,6 +160,36 @@ export function isSetFeaturedCacheStale(setId: string): boolean {
   return Date.now() - ts > STALE_FEATURED
 }
 
+// ── Curated gallery ──
+
+const LS_CURATED = "tcg_curated"
+const CURATED_WINDOW_MS = 6 * 60 * 60 * 1000 // 6h
+
+export function getCuratedWindowKey(): number {
+  return Math.floor(Date.now() / CURATED_WINDOW_MS)
+}
+
+export function getCuratedCache(): { cards: PokemonCard[]; windowKey: number } | null {
+  try {
+    const raw = localStorage.getItem(LS_CURATED)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+export function setCuratedCache(data: { cards: PokemonCard[]; windowKey: number }) {
+  try {
+    localStorage.setItem(LS_CURATED, JSON.stringify(data))
+  } catch { /* quota exceeded */ }
+}
+
+export function isCuratedCacheStale(): boolean {
+  const cached = getCuratedCache()
+  if (!cached) return true
+  return cached.windowKey !== getCuratedWindowKey()
+}
+
 // ── Card cache persistence ──
 
 function persistCardCache() {

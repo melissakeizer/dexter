@@ -4,7 +4,7 @@ import { useMemo, useCallback, useState } from "react"
 import { ChevronRight } from "lucide-react"
 import { CarouselRow } from "./carousel-row"
 import { SetCarouselRow } from "./set-carousel-row"
-import { DatabaseScreen } from "./database-screen"
+import { CuratedGalleryScreen } from "./curated-gallery-screen"
 import { SetScreen } from "./set-screen"
 import { CardTile } from "@/components/shared/card-tile"
 import { CardTileSkeleton } from "@/components/shared/card-tile-skeleton"
@@ -39,7 +39,7 @@ const emptyFilters: CardFilters = { rarity: [], artist: [], set: [], type: [] }
 
 type Screen =
   | { type: "feed" }
-  | { type: "database"; filters?: CardFilters; query?: string }
+  | { type: "gallery"; filters?: CardFilters; query?: string }
   | { type: "set"; setId: string; setName: string }
 
 export function DiscoverTab() {
@@ -144,13 +144,14 @@ export function DiscoverTab() {
 
   const handleViewAll = useCallback((row: RowDef) => {
     const filters: CardFilters = { ...emptyFilters, [row.filterKey]: [row.filterValue] }
-    setScreen({ type: "database", filters })
+    setScreen({ type: "gallery", filters })
   }, [])
 
   // ── Set screen ──
   if (screen.type === "set") {
     return (
       <SetScreen
+        key={screen.setId}
         setId={screen.setId}
         setName={screen.setName}
         onBack={() => setScreen({ type: "feed" })}
@@ -158,10 +159,10 @@ export function DiscoverTab() {
     )
   }
 
-  // ── Database screen ──
-  if (screen.type === "database") {
+  // ── Gallery screen ──
+  if (screen.type === "gallery") {
     return (
-      <DatabaseScreen
+      <CuratedGalleryScreen
         onBack={() => setScreen({ type: "feed" })}
         initialFilters={screen.filters}
         initialQuery={screen.query}
@@ -220,14 +221,14 @@ export function DiscoverTab() {
                       <button
                         onClick={() =>
                           setScreen({
-                            type: "database",
+                            type: "gallery",
                             filters: feedFilters,
                             query: feedQuery.trim() || undefined,
                           })
                         }
                         className="text-sm font-medium text-primary transition-colors active:text-primary/70"
                       >
-                        View all {feedFilteredCards.length} results in Browse
+                        View all {feedFilteredCards.length} results
                       </button>
                     </div>
                   )}
@@ -241,13 +242,13 @@ export function DiscoverTab() {
           {/* Browse all CTA */}
           <div className="px-4">
             <button
-              onClick={() => setScreen({ type: "database" })}
+              onClick={() => setScreen({ type: "gallery" })}
               className="flex w-full items-center justify-between rounded-xl bg-primary px-4 py-3.5 text-primary-foreground shadow-sm transition-all active:scale-[0.99]"
             >
               <div className="text-left">
-                <span className="text-sm font-semibold">Browse all cards</span>
+                <span className="text-sm font-semibold">Curated Gallery</span>
                 <p className="text-xs text-primary-foreground/70">
-                  Search thousands of cards across all sets
+                  Hand-picked rare & beautiful cards, refreshed daily
                 </p>
               </div>
               <ChevronRight className="h-5 w-5 shrink-0 text-primary-foreground/70" />

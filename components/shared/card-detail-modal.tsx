@@ -258,6 +258,7 @@ function ChipResultsView({
 }) {
   const [page, setPage] = useState(1)
   const [allFetchedCards, setAllFetchedCards] = useState<PokemonCard[]>([])
+  const [endReached, setEndReached] = useState(false)
   const cardStates = useAppStore((s) => s.cardStates)
 
   const { result, loading } = useSearchCards({
@@ -268,6 +269,9 @@ function ChipResultsView({
 
   useEffect(() => {
     if (!result) return
+    if (result.cards.length < 20) {
+      setEndReached(true)
+    }
     startTransition(() => {
       if (page === 1) {
         setAllFetchedCards(dedupeById(result.cards))
@@ -285,7 +289,7 @@ function ChipResultsView({
   }, [allFetchedCards, cardStates])
 
   const totalCount = result?.totalCount ?? 0
-  const hasMore = allFetchedCards.length < totalCount
+  const hasMore = !endReached && allFetchedCards.length < totalCount
   const isFirstLoad = loading && allFetchedCards.length === 0
 
   return (

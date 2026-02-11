@@ -25,8 +25,12 @@ export function SetScreen({ setId, setName, onBack }: SetScreenProps) {
   const [page, setPage] = useState(1)
   const cardStates = useAppStore((s) => s.cardStates)
 
+  // Guard: if setId is empty, don't fetch (would return unfiltered cards)
+  const validSetId = setId && setId.trim().length > 0
+
   // Read cache once on mount (safe — SetScreen is never SSR'd)
   const [{ cachedCards, cachedTotal, needsFetch }] = useState(() => {
+    if (!validSetId) return { cachedCards: [] as PokemonCard[], cachedTotal: 0, needsFetch: false }
     const cached = getSetCardCache(setId)
     return {
       cachedCards: cached?.cards ?? [],
@@ -36,19 +40,24 @@ export function SetScreen({ setId, setName, onBack }: SetScreenProps) {
   })
 
   const [allFetchedCards, setAllFetchedCards] = useState<PokemonCard[]>(cachedCards)
+  const [endReached, setEndReached] = useState(false)
 
   // Only fetch when cache is missing/stale, or when paginating beyond page 1
-  const { result, loading } = useSearchCards({
+  const { result, loading, error } = useSearchCards({
     rawQuery: `set.id:"${setId}"`,
     orderBy: "number",
     page,
     pageSize: CARDS_PER_PAGE,
-    enabled: needsFetch || page > 1,
+    enabled: validSetId && (needsFetch || page > 1),
   })
 
   // Accumulate cards across pages + update cache on page 1
   useEffect(() => {
     if (!result) return
+    // Detect end of data: fewer cards than requested means no more pages
+    if (result.cards.length < CARDS_PER_PAGE) {
+      setEndReached(true)
+    }
     startTransition(() => {
       if (page === 1) {
         setAllFetchedCards(dedupeById(result.cards))
@@ -71,7 +80,7 @@ export function SetScreen({ setId, setName, onBack }: SetScreenProps) {
   }, [allFetchedCards, cardStates])
 
   const totalCount = result?.totalCount ?? cachedTotal
-  const hasMore = allFetchedCards.length < totalCount
+  const hasMore = !endReached && allFetchedCards.length < totalCount
   const isFirstLoad = loading && allFetchedCards.length === 0
 
   return (
@@ -98,7 +107,11 @@ export function SetScreen({ setId, setName, onBack }: SetScreenProps) {
       </div>
 
       {/* Card grid */}
-      {isFirstLoad ? (
+      {!validSetId ? (
+        <div className="py-16 text-center">
+          <p className="text-sm text-muted-foreground">Unable to load this set</p>
+        </div>
+      ) : isFirstLoad ? (
         <div className="flex flex-col items-center gap-3 py-16">
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
           <p className="text-sm text-muted-foreground">Loading {setName}&hellip;</p>

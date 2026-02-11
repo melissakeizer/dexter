@@ -15,6 +15,9 @@ import {
   getSetFeaturedCache,
   setSetFeaturedCache,
   isSetFeaturedCacheStale,
+  getCuratedCache,
+  setCuratedCache,
+  isCuratedCacheStale,
 } from "@/lib/card-cache"
 
 // ── useSets ──
@@ -134,6 +137,7 @@ export function useSearchCards(opts: UseSearchCardsOpts) {
   const [result, setResult] = useState<TcgCardsResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [stale, setStale] = useState(false)
 
   // Build Lucene query from filters + q
   const luceneQuery = useMemo(() => {
@@ -187,6 +191,7 @@ export function useSearchCards(opts: UseSearchCardsOpts) {
         putCardsInCacheAndPersist(data.cards)
         startTransition(() => {
           setResult(data)
+          setStale(data.stale === true)
           setLoading(false)
         })
       })
@@ -195,13 +200,6 @@ export function useSearchCards(opts: UseSearchCardsOpts) {
         console.error("useSearchCards error:", err)
         startTransition(() => {
           setError(err.message)
-          // Fallback to MOCK_CARDS on error
-          setResult({
-            cards: MOCK_CARDS,
-            totalCount: MOCK_CARDS.length,
-            page: 1,
-            pageSize: MOCK_CARDS.length,
-          })
           setLoading(false)
         })
       })
@@ -209,7 +207,7 @@ export function useSearchCards(opts: UseSearchCardsOpts) {
     return () => controller.abort()
   }, [luceneQuery, rawQuery, orderBy, page, pageSize, enabled])
 
-  return { result, loading, error }
+  return { result, loading, error, stale }
 }
 
 // ── useFeaturedCards ──
@@ -259,6 +257,53 @@ export function useFeaturedCards(setId: string | undefined, limit = 8) {
   }, [setId, limit, needsFetch, cards.length])
 
   return { cards, loading }
+}
+
+// ── useCuratedCards ──
+
+export function useCuratedCards() {
+  const [{ cached, needsFetch }] = useState(() => {
+    const c = getCuratedCache()
+    return { cached: c, needsFetch: !c || isCuratedCacheStale() }
+  })
+
+  const [cards, setCards] = useState<PokemonCard[]>(cached?.cards ?? [])
+  const [loading, setLoading] = useState(false)
+  const [stale, setStale] = useState(false)
+
+  useEffect(() => {
+    if (!needsFetch) return
+
+    const controller = new AbortController()
+    if (cards.length === 0) startTransition(() => setLoading(true))
+
+    fetch("/api/tcg/curated", { signal: controller.signal })
+      .then((r) => r.json())
+      .then((data: { cards: PokemonCard[]; windowKey: number; stale?: boolean; error?: string }) => {
+        if (!data.cards || data.cards.length === 0) {
+          // 503 or empty — keep whatever we already have, stop loading
+          console.warn("useCuratedCards: no cards returned", data.error)
+          startTransition(() => setLoading(false))
+          return
+        }
+        putCardsInCacheAndPersist(data.cards)
+        setCuratedCache(data)
+        startTransition(() => {
+          setCards(data.cards)
+          setStale(data.stale === true)
+          setLoading(false)
+        })
+      })
+      .catch((err) => {
+        if (err.name === "AbortError") return
+        console.error("useCuratedCards error:", err)
+        startTransition(() => setLoading(false))
+      })
+
+    return () => controller.abort()
+  }, [needsFetch, cards.length])
+
+  return { cards, loading, stale }
 }
 
 // ── useCardsById ──
