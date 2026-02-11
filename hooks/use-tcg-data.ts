@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, startTransition } from "react"
+import { useState, useEffect, useMemo, useCallback, startTransition } from "react"
 import type { PokemonCard, CachedSet, CachedMeta, CardFilters, TcgCardsResponse } from "@/lib/types"
 import { MOCK_CARDS, MOCK_TYPES, MOCK_RARITIES } from "@/lib/mock-data"
 import {
@@ -270,20 +270,32 @@ export function useCuratedCards() {
   const [cards, setCards] = useState<PokemonCard[]>(cached?.cards ?? [])
   const [loading, setLoading] = useState(false)
   const [stale, setStale] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [fetchKey, setFetchKey] = useState(0)
 
   useEffect(() => {
-    if (!needsFetch) return
+    if (!needsFetch && fetchKey === 0) return
 
     const controller = new AbortController()
-    if (cards.length === 0) startTransition(() => setLoading(true))
+    startTransition(() => {
+      setLoading(true)
+      setError(null)
+    })
 
     fetch("/api/tcg/curated", { signal: controller.signal })
-      .then((r) => r.json())
-      .then((data: { cards: PokemonCard[]; windowKey: number; stale?: boolean; error?: string }) => {
+      .then(async (r) => {
+        const data = await r.json()
+        if (!r.ok) {
+          throw new Error(data?.error || `Server error (${r.status})`)
+        }
+        return data as { cards: PokemonCard[]; windowKey: number; stale?: boolean }
+      })
+      .then((data) => {
         if (!data.cards || data.cards.length === 0) {
-          // 503 or empty — keep whatever we already have, stop loading
-          console.warn("useCuratedCards: no cards returned", data.error)
-          startTransition(() => setLoading(false))
+          startTransition(() => {
+            setError("No curated cards available right now")
+            setLoading(false)
+          })
           return
         }
         putCardsInCacheAndPersist(data.cards)
@@ -291,19 +303,27 @@ export function useCuratedCards() {
         startTransition(() => {
           setCards(data.cards)
           setStale(data.stale === true)
+          setError(null)
           setLoading(false)
         })
       })
       .catch((err) => {
         if (err.name === "AbortError") return
         console.error("useCuratedCards error:", err)
-        startTransition(() => setLoading(false))
+        startTransition(() => {
+          setError(err.message || "Failed to load curated cards")
+          setLoading(false)
+        })
       })
 
     return () => controller.abort()
-  }, [needsFetch, cards.length])
+  }, [needsFetch, fetchKey])
 
-  return { cards, loading, stale }
+  const retry = useCallback(() => {
+    setFetchKey((k) => k + 1)
+  }, [])
+
+  return { cards, loading, stale, error, retry }
 }
 
 // ── useCardsById ──

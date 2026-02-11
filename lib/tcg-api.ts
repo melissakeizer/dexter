@@ -13,7 +13,10 @@ const TTL_SETS = 24 * 60 * 60 * 1000 // 24h
 const TTL_META = 24 * 60 * 60 * 1000 // 24h
 const TTL_CARDS = 15 * 60 * 1000     // 15min
 const TTL_CURATED = 6 * 60 * 60 * 1000 // 6h
-const CURATED_COUNT = 42
+const CURATED_TARGET = 40
+const CURATED_PER_SET = 10
+const CURATED_MIN_SETS = 6
+const CURATED_MAX_SETS = 12
 
 function getCached<T>(key: string): T | null {
   const entry = cache.get(key)
@@ -193,13 +196,6 @@ export async function fetchCards(opts: {
 
 // ── Curated gallery ──
 
-/** Rarity buckets — smaller parallel queries instead of one huge OR */
-const CURATED_BUCKETS = [
-  ["Special Illustration Rare", "Illustration Rare"],
-  ["Hyper Rare", "Ultra Rare", "Double Rare"],
-  ["Rare Holo VMAX", "Rare Secret"],
-]
-
 /** mulberry32 seeded PRNG */
 function mulberry32(seed: number): () => number {
   let s = seed | 0
@@ -225,6 +221,31 @@ export function getTimeWindow(): number {
   return Math.floor(Date.now() / TTL_CURATED)
 }
 
+/** Rarity score — higher means rarer / more desirable for curated picks */
+const RARITY_SCORE: Record<string, number> = {
+  "Special Illustration Rare": 100,
+  "Hyper Rare": 95,
+  "Illustration Rare": 90,
+  "Rare Secret": 85,
+  "Ultra Rare": 80,
+  "Double Rare": 75,
+  "Rare Holo VMAX": 70,
+  "Rare Holo VSTAR": 65,
+  "Rare Holo V": 60,
+  "Rare Holo GX": 55,
+  "Rare Holo EX": 50,
+  "Rare Holo": 45,
+  "Rare": 40,
+}
+
+function cardSortScore(card: PokemonCard): number {
+  const num = parseInt(card.number, 10)
+  const isSecret = !isNaN(num) && card.printedTotal != null && num > card.printedTotal
+  const rarity = RARITY_SCORE[card.rarity] ?? 0
+  // Secrets get a large bonus so they always appear first
+  return (isSecret ? 1000 : 0) + rarity
+}
+
 type CuratedResult = { cards: PokemonCard[]; windowKey: number; stale?: boolean }
 
 export async function fetchCuratedCards(): Promise<CuratedResult> {
@@ -235,34 +256,50 @@ export async function fetchCuratedCards(): Promise<CuratedResult> {
   if (cached) return cached
 
   try {
-    // Fetch each rarity bucket in parallel — smaller, more reliable queries
-    const bucketResults = await Promise.allSettled(
-      CURATED_BUCKETS.map((bucket) => {
-        const q = `rarity:(${bucket.map((r) => `"${r}"`).join(" OR ")})`
-        return fetchCards({ q, pageSize: 50, orderBy: "-set.releaseDate" })
-      })
-    )
+    // 1. Get sets (cached 24h) and pick deterministically
+    const allSets = await fetchSets()
+    if (allSets.length === 0) throw new Error("No sets available")
 
-    // Combine successful buckets, dedupe by id
+    const shuffledSets = seededShuffle([...allSets], windowKey)
+
+    // 2. Fetch sets in batches until we have enough cards
     const allCards: PokemonCard[] = []
     const seen = new Set<string>()
-    for (const r of bucketResults) {
-      if (r.status === "fulfilled") {
-        for (const card of r.value.cards) {
+    let setIndex = 0
+
+    while (allCards.length < CURATED_TARGET && setIndex < Math.min(shuffledSets.length, CURATED_MAX_SETS)) {
+      const batchSize = setIndex === 0 ? CURATED_MIN_SETS : 2
+      const batch = shuffledSets.slice(setIndex, setIndex + batchSize)
+      setIndex += batch.length
+
+      const results = await Promise.allSettled(
+        batch.map((set) =>
+          fetchCards({ q: `set.id:"${set.id}"`, pageSize: 60, orderBy: "number" })
+        )
+      )
+
+      for (const r of results) {
+        if (r.status !== "fulfilled") continue
+
+        // Sort: secret rares first, then by rarity score desc
+        const sorted = [...r.value.cards].sort((a, b) => cardSortScore(b) - cardSortScore(a))
+
+        // Take top cards from this set, dedupe
+        let taken = 0
+        for (const card of sorted) {
+          if (taken >= CURATED_PER_SET) break
           if (!seen.has(card.id)) {
             seen.add(card.id)
             allCards.push(card)
+            taken++
           }
         }
       }
     }
 
-    if (allCards.length === 0) throw new Error("All curated rarity buckets failed")
+    if (allCards.length === 0) throw new Error("All set fetches failed")
 
-    const shuffled = seededShuffle([...allCards], windowKey)
-    const picked = shuffled.slice(0, CURATED_COUNT)
-
-    const result: CuratedResult = { cards: picked, windowKey }
+    const result: CuratedResult = { cards: allCards.slice(0, CURATED_TARGET), windowKey }
     setCached(cacheKey, result, TTL_CURATED)
     setCached("curated:latest", result, TTL_CURATED * 4) // long-lived fallback
     return result

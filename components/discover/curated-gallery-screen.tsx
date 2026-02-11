@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect, useCallback, startTransition } from "react"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, RotateCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CardTile } from "@/components/shared/card-tile"
 import { CardTileSkeleton } from "@/components/shared/card-tile-skeleton"
@@ -43,7 +43,7 @@ export function CuratedGalleryScreen({
     Object.values(filters).flat().length > 0
 
   // Curated cards (default mode)
-  const { cards: curatedCards, loading: curatedLoading, stale: curatedStale } = useCuratedCards()
+  const { cards: curatedCards, loading: curatedLoading, stale: curatedStale, error: curatedError, retry: curatedRetry } = useCuratedCards()
 
   // API search (search mode)
   const { result, loading: searchLoading, stale: searchStale } = useSearchCards({
@@ -159,9 +159,25 @@ export function CuratedGalleryScreen({
             <CardTileSkeleton key={i} />
           ))}
         </div>
+      ) : !hasSearch && curatedError && displayCards.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 py-16">
+          <p className="text-sm text-muted-foreground">{curatedError}</p>
+          <Button variant="outline" size="sm" onClick={curatedRetry}>
+            <RotateCw className="mr-1.5 h-3.5 w-3.5" />
+            Retry
+          </Button>
+        </div>
       ) : displayCards.length === 0 ? (
-        <div className="py-16 text-center">
-          <p className="text-sm text-muted-foreground">No cards found</p>
+        <div className="flex flex-col items-center gap-3 py-16">
+          <p className="text-sm text-muted-foreground">
+            {hasSearch ? "No cards match your search" : "No curated cards found"}
+          </p>
+          {!hasSearch && (
+            <Button variant="outline" size="sm" onClick={curatedRetry}>
+              <RotateCw className="mr-1.5 h-3.5 w-3.5" />
+              Try again
+            </Button>
+          )}
         </div>
       ) : (
         <div className={hasSearch
