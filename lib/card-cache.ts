@@ -130,6 +130,36 @@ export function isSetCardCacheStale(setId: string): boolean {
   return Date.now() - ts > STALE_SET_CARDS
 }
 
+// ── Featured cards per set ──
+
+const STALE_FEATURED = 60 * 60 * 1000 // 1h
+
+function featuredKey(setId: string) {
+  return `tcg_set_featured_${setId}`
+}
+
+export function getSetFeaturedCache(setId: string): PokemonCard[] | null {
+  try {
+    const raw = localStorage.getItem(featuredKey(setId))
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+export function setSetFeaturedCache(setId: string, cards: PokemonCard[]) {
+  try {
+    localStorage.setItem(featuredKey(setId), JSON.stringify(cards))
+    setTimestamp(featuredKey(setId))
+  } catch { /* quota exceeded */ }
+}
+
+export function isSetFeaturedCacheStale(setId: string): boolean {
+  const ts = getTimestamps()[featuredKey(setId)]
+  if (!ts) return true
+  return Date.now() - ts > STALE_FEATURED
+}
+
 // ── Card cache persistence ──
 
 function persistCardCache() {

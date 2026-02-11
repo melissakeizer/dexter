@@ -12,6 +12,9 @@ import {
   isMetaStale,
   getCardFromCache,
   putCardsInCacheAndPersist,
+  getSetFeaturedCache,
+  setSetFeaturedCache,
+  isSetFeaturedCacheStale,
 } from "@/lib/card-cache"
 
 // ── useSets ──
@@ -212,16 +215,21 @@ export function useSearchCards(opts: UseSearchCardsOpts) {
 // ── useFeaturedCards ──
 
 export function useFeaturedCards(setId: string | undefined, limit = 8) {
-  const [cards, setCards] = useState<PokemonCard[]>([])
+  // Read cache once on mount (safe — only called client-side)
+  const [{ cached, needsFetch }] = useState(() => {
+    if (!setId) return { cached: null as PokemonCard[] | null, needsFetch: true }
+    const c = getSetFeaturedCache(setId)
+    return { cached: c, needsFetch: !c || isSetFeaturedCacheStale(setId) }
+  })
+
+  const [cards, setCards] = useState<PokemonCard[]>(cached ?? [])
   const [loading, setLoading] = useState(false)
 
-  // Deps array [setId, limit] prevents duplicate fetches;
-  // abort controller handles cleanup on unmount / strict-mode remount.
   useEffect(() => {
-    if (!setId) return
+    if (!setId || !needsFetch) return
 
     const controller = new AbortController()
-    startTransition(() => setLoading(true))
+    if (cards.length === 0) startTransition(() => setLoading(true))
 
     const params = new URLSearchParams()
     params.set("q", `set.id:"${setId}"`)
@@ -235,6 +243,7 @@ export function useFeaturedCards(setId: string | undefined, limit = 8) {
       })
       .then((data: TcgCardsResponse) => {
         putCardsInCacheAndPersist(data.cards)
+        setSetFeaturedCache(setId, data.cards)
         startTransition(() => {
           setCards(data.cards)
           setLoading(false)
@@ -247,7 +256,7 @@ export function useFeaturedCards(setId: string | undefined, limit = 8) {
       })
 
     return () => controller.abort()
-  }, [setId, limit])
+  }, [setId, limit, needsFetch, cards.length])
 
   return { cards, loading }
 }

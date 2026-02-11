@@ -7,6 +7,9 @@ export interface PokemonCard {
   name: string
   set: string
   setId?: string
+  number?: string
+  printedTotal?: number
+  setTotal?: number
   rarity: string
   type: string
   artist: string
@@ -58,6 +61,7 @@ export type MetaFilter = "owned" | "wishlist"
 export interface TcgApiCard {
   id: string
   name: string
+  number?: string
   supertype?: string
   subtypes?: string[]
   types?: string[]
