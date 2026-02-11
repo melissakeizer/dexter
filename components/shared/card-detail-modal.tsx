@@ -143,8 +143,18 @@ function CardDetailView({ card, onChipTap, onRelatedCardTap }: CardDetailViewPro
         </div>
       </div>
 
-      {/* Title */}
+      {/* Title + Number */}
       <h2 className="text-center text-xl font-bold text-foreground text-balance">{card.name}</h2>
+      {card.number && (
+        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          <span>{card.number} / {card.printedTotal ?? card.setTotal ?? "?"}</span>
+          {card.printedTotal && Number(card.number) > card.printedTotal && (
+            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600">
+              Secret
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Action Buttons */}
       <div className="flex gap-3">

@@ -128,16 +128,8 @@ export function DiscoverTab() {
     }))
   }, [cardStates])
 
-  // Chase cards = holo rarity cards from mock data, prioritize wishlist then owned
-  const chaseCards = useMemo(() => {
-    return allMockCards
-      .filter((c) => c.rarity === "Rare Holo")
-      .sort((a, b) => {
-        const score = (s: string) => s === "wishlist" ? 2 : s === "owned" ? 1 : 0
-        return score(b.status) - score(a.status)
-      })
-      .slice(0, 10)
-  }, [allMockCards])
+  // Progressive set row loading
+  const [visibleSetCount, setVisibleSetCount] = useState(5)
 
   // Build fallback row card lists (max 12 per row)
   const rowCards = useMemo(() => {
@@ -262,20 +254,10 @@ export function DiscoverTab() {
             </button>
           </div>
 
-          {/* Chase Cards row */}
-          <CarouselRow
-            title="Chase Cards"
-            cards={chaseCards}
-            onCardTap={setSelectedCard}
-            onViewAll={() =>
-              setScreen({ type: "database", filters: { ...emptyFilters, rarity: ["Rare Holo"] } })
-            }
-          />
-
           {/* Dynamic set carousels from API */}
           {hasSets ? (
             <>
-              {sets.slice(0, 4).map((set) => (
+              {sets.slice(0, visibleSetCount).map((set) => (
                 <SetCarouselRow
                   key={set.id}
                   set={set}
@@ -285,10 +267,20 @@ export function DiscoverTab() {
                   }
                 />
               ))}
+              {visibleSetCount < sets.length && visibleSetCount < 10 && (
+                <div className="flex justify-center px-4">
+                  <button
+                    onClick={() => setVisibleSetCount((c) => Math.min(c + 5, sets.length, 10))}
+                    className="text-sm font-medium text-primary transition-colors active:text-primary/70"
+                  >
+                    Show more sets
+                  </button>
+                </div>
+              )}
             </>
           ) : setsLoading ? (
             <>
-              {Array.from({ length: 4 }).map((_, i) => (
+              {Array.from({ length: 5 }).map((_, i) => (
                 <CarouselRowSkeleton key={i} />
               ))}
             </>
